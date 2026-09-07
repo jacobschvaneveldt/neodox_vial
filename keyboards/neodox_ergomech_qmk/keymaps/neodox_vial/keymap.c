@@ -295,11 +295,81 @@ oneshot_state os_alt_state  = os_up_unqueued;
 oneshot_state os_supr_state = os_up_unqueued;
 
 // DEL_LINE selects the whole line and deletes it; everything else just
+#ifdef OLED_ENABLE
+// Label for the last key pressed, shown on the card. Deliberately naive: a
+// combo shows its trigger keys first, then the keycode the combo produces.
+#define KEY_LABEL_MAX 5
+static char last_key[KEY_LABEL_MAX] = "";
+
+// Unshifted then shifted printable for the number row and punctuation, in
+// keycode order from KC_1 through KC_SLASH.
+static const char key_sym[][2] = {
+    {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'},
+    {'6', '^'}, {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'},
+};
+static const char key_punct[][2] = {
+    {'-', '_'}, {'=', '+'}, {'[', '{'}, {']', '}'}, {0x5C, '|'},
+    {'#', '~'}, {';', ':'}, {0x27, '"'}, {'`', '~'}, {',', '<'},
+    {'.', '>'}, {'/', '?'},
+};
+
+// Fills last_key, or leaves it alone for keycodes with nothing useful to show
+// (mods, layer keys, anything Vial remapped beyond basic keycodes).
+static void set_key_label(uint16_t keycode) {
+    bool shift = (get_mods() | get_weak_mods()) & MOD_MASK_SHIFT;
+    const char *named = NULL;
+
+    if (keycode >= KC_A && keycode <= KC_Z) {
+        last_key[0] = (shift ? 'A' : 'a') + (keycode - KC_A);
+        last_key[1] = 0;
+        return;
+    }
+    if (keycode >= KC_1 && keycode <= KC_0) {
+        last_key[0] = key_sym[keycode - KC_1][shift ? 1 : 0];
+        last_key[1] = 0;
+        return;
+    }
+    if (keycode >= KC_MINUS && keycode <= KC_SLASH) {
+        last_key[0] = key_punct[keycode - KC_MINUS][shift ? 1 : 0];
+        last_key[1] = 0;
+        return;
+    }
+
+    switch (keycode) {
+        case KC_ENTER:     named = "ENT";  break;
+        case KC_ESCAPE:    named = "ESC";  break;
+        case KC_BSPC:      named = "BSP";  break;
+        case KC_TAB:       named = "TAB";  break;
+        case KC_SPACE:     named = "SPC";  break;
+        case KC_DELETE:    named = "DEL";  break;
+        case KC_HOME:      named = "HOM";  break;
+        case KC_END:       named = "END";  break;
+        case KC_PGUP:      named = "PGU";  break;
+        case KC_PGDN:      named = "PGD";  break;
+        case KC_LEFT:      named = "LFT";  break;
+        case KC_RIGHT:     named = "RGT";  break;
+        case KC_UP:        named = "UP";   break;
+        case KC_DOWN:      named = "DWN";  break;
+        case DEL_LINE:     named = "DLN";  break;
+        case ANIM_TOG:     named = "ANIM"; break;
+        default: return;  // nothing sensible to show; keep the previous key
+    }
+    uint8_t i = 0;
+    while (named[i] != 0 && i < KEY_LABEL_MAX - 1) {
+        last_key[i] = named[i];
+        i++;
+    }
+    last_key[i] = 0;
+}
+#endif
+
 // feeds the four sticky-mod state machines.
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
         tap_count++;
+#ifdef OLED_ENABLE
         set_key_label(keycode);
+#endif
 #ifdef ANIM_ON_MASTER
         // process_record_user only runs on the master, so when the master
         // draws the animation, feed it directly - no split round trip.
@@ -554,72 +624,6 @@ static void draw_text_centered(uint8_t y, const char *s, bool ink) {
 #define UI_TEXT_INSET 2
 
 static const uint8_t ui_pill_top[] = {57, 73, 89, 105};
-
-// Label for the last key pressed, shown on the card. Deliberately naive: a
-// combo shows its trigger keys first, then the keycode the combo produces.
-#define KEY_LABEL_MAX 5
-static char last_key[KEY_LABEL_MAX] = "";
-
-// Unshifted then shifted printable for the number row and punctuation, in
-// keycode order from KC_1 through KC_SLASH.
-static const char key_sym[][2] = {
-    {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'},
-    {'6', '^'}, {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'},
-};
-static const char key_punct[][2] = {
-    {'-', '_'}, {'=', '+'}, {'[', '{'}, {']', '}'}, {0x5C, '|'},
-    {'#', '~'}, {';', ':'}, {0x27, '"'}, {'`', '~'}, {',', '<'},
-    {'.', '>'}, {'/', '?'},
-};
-
-// Fills last_key, or leaves it alone for keycodes with nothing useful to show
-// (mods, layer keys, anything Vial remapped beyond basic keycodes).
-static void set_key_label(uint16_t keycode) {
-    bool shift = (get_mods() | get_weak_mods()) & MOD_MASK_SHIFT;
-    const char *named = NULL;
-
-    if (keycode >= KC_A && keycode <= KC_Z) {
-        last_key[0] = (shift ? 'A' : 'a') + (keycode - KC_A);
-        last_key[1] = 0;
-        return;
-    }
-    if (keycode >= KC_1 && keycode <= KC_0) {
-        last_key[0] = key_sym[keycode - KC_1][shift ? 1 : 0];
-        last_key[1] = 0;
-        return;
-    }
-    if (keycode >= KC_MINUS && keycode <= KC_SLASH) {
-        last_key[0] = key_punct[keycode - KC_MINUS][shift ? 1 : 0];
-        last_key[1] = 0;
-        return;
-    }
-
-    switch (keycode) {
-        case KC_ENTER:     named = "ENT";  break;
-        case KC_ESCAPE:    named = "ESC";  break;
-        case KC_BSPC:      named = "BSP";  break;
-        case KC_TAB:       named = "TAB";  break;
-        case KC_SPACE:     named = "SPC";  break;
-        case KC_DELETE:    named = "DEL";  break;
-        case KC_HOME:      named = "HOM";  break;
-        case KC_END:       named = "END";  break;
-        case KC_PGUP:      named = "PGU";  break;
-        case KC_PGDN:      named = "PGD";  break;
-        case KC_LEFT:      named = "LFT";  break;
-        case KC_RIGHT:     named = "RGT";  break;
-        case KC_UP:        named = "UP";   break;
-        case KC_DOWN:      named = "DWN";  break;
-        case DEL_LINE:     named = "DLN";  break;
-        case ANIM_TOG:     named = "ANIM"; break;
-        default: return;  // nothing sensible to show; keep the previous key
-    }
-    uint8_t i = 0;
-    while (named[i] != 0 && i < KEY_LABEL_MAX - 1) {
-        last_key[i] = named[i];
-        i++;
-    }
-    last_key[i] = 0;
-}
 
 static const char *layer_name(uint8_t layer) {
     switch (layer) {
