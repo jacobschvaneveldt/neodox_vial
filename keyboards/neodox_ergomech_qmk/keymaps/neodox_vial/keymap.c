@@ -14,7 +14,7 @@ enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 static uint8_t anim_mode = ANIM_DEFAULT;
 
 // Uncomment to draw the animation on the master screen while tuning it.
-// #define ANIM_ON_MASTER
+#define ANIM_ON_MASTER
 
 // Which half draws the animation; the other draws the layer/mod readout.
 static inline bool half_draws_anim(void) {
