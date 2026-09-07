@@ -47,7 +47,7 @@ against stock vial-qmk or mainline QMK.
 Point QMK at this repo once:
 
 ```
-qmk config user.overlay_dir="/full/path/to/neodox-vial-keymap"
+qmk config user.overlay_dir="/full/path/to/neodox_vial"
 ```
 
 Then from anywhere:
