@@ -668,6 +668,13 @@ static void render_mod_pill(uint8_t idx, const char *label, bool active) {
     draw_text_centered(top + UI_TEXT_INSET, label, !active);
 }
 
+// Buffer blocks are 8 logical rows tall, so redrawing just the card interior
+// dirties 3 of 16 instead of all of them. Border rows are left alone.
+static void render_key_card(void) {
+    draw_fill(1, UI_CARD_TOP + 1, SCREEN_W - 2, UI_CARD_BOT - 1, false);
+    draw_text_centered(UI_NAME_Y, last_key, true);
+}
+
 static void render_layer_status(void) {
     // layer_state is 0 with no overlay held, so fall back to default_layer_state
     // or this always reads "layer 0" regardless of what DF() selected.
@@ -683,12 +690,21 @@ static void render_layer_status(void) {
     static uint8_t last_layer = 0xFF;
     static uint8_t last_mods  = 0xFF;
     static char    last_shown[KEY_LABEL_MAX] = "";
-    if (active_layer == last_layer && mod_bits == last_mods && strcmp(last_shown, last_key) == 0) {
+    bool frame = (active_layer != last_layer) || (mod_bits != last_mods);
+    bool key   = strcmp(last_shown, last_key) != 0;
+    if (!frame && !key) {
         return;
     }
     last_layer = active_layer;
     last_mods  = mod_bits;
     memcpy(last_shown, last_key, KEY_LABEL_MAX);
+
+    // Typing only changes the card, and that happens on every keystroke, so
+    // keep the full repaint for the rarer layer and modifier changes.
+    if (!frame) {
+        render_key_card();
+        return;
+    }
 
     // Clearing is required, not just tidy: a pill going from filled back to
     // outlined would otherwise keep its old fill.
