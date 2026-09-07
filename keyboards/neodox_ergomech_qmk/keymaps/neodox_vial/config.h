@@ -1,6 +1,5 @@
 #pragma once
 
-#define USE_SERIAL
 #define VIAL_KEYBOARD_UID {0x54, 0xB9, 0x18, 0x3D, 0xE9, 0x29, 0xA8, 0x22}
 #define FORCE_NKRO
 
@@ -22,7 +21,6 @@
 // set to the layout it was drawn for.
 #define COMBO_SHOULD_TRIGGER
 
-#define AUTO_SHIFT_TIMEOUT 200
 #undef MOUSEKEY_DELAY
 #define MOUSEKEY_DELAY          0
 #undef MOUSEKEY_INTERVAL
