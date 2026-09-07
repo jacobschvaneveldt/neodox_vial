@@ -109,11 +109,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     ),
 
     [_ADJUST] = LAYOUT(
-        ANIM_TOG, _______, _______, _______, _______, _______,                                            _______, _______, _______, _______, _______, _______,
-        _______,  KC_BTN2, KC_WH_U, KC_MS_U, KC_WH_D, KC_TAB,  TG(_GAME),                        KC_MPLY, C(KC_N), C(KC_L), C(KC_T), C(KC_W), G(KC_S), _______,
-        _______,  KC_BTN1, KC_MS_L, KC_MS_D, KC_MS_R, KC_Q,    _______,                          _______, C(KC_1), C(KC_2), C(KC_3), C(KC_4), C(KC_5), _______,
-        _______,  KC_BTN4, KC_BTN5, C(KC_C), C(KC_V), KC_ENT,  _______,   _______,      _______, _______, KC_DEL,  KC_BSPC, KC_LGUI, KC_LALT, _______, _______,
-                  _______, _______, _______, _______, _______, _______,   _______,      _______, _______, _______, _______, _______, _______, _______
+        ANIM_TOG, KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,                                              KC_F6,      KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,
+        _______,  KC_BTN2, KC_WH_U, KC_MS_U, KC_WH_D, KC_TAB,  TG(_GAME),                        KC_MPLY, C(KC_N),    C(KC_L), C(KC_T), C(KC_W), G(KC_S), KC_F12,
+        _______,  KC_BTN1, KC_MS_L, KC_MS_D, KC_MS_R, KC_Q,    _______,                          _______, G(S(KC_S)), KC_HOME, KC_END,  _______, _______, _______,
+        _______,  KC_BTN4, KC_BTN5, C(KC_C), C(KC_V), KC_ENT,  _______,   _______,      _______, _______, KC_DEL,     KC_BSPC, KC_LGUI, KC_LALT, _______, _______,
+                  _______, _______, _______, _______, _______, _______,   _______,      _______, _______, _______,    _______, _______, _______, _______
     )
 };
 #if defined(ENCODER_MAP_ENABLE)
@@ -792,40 +792,40 @@ static void render_sky(void) {
     // Clouds at staggered heights, wrapping around as they drift.
     for (uint8_t i = 0; i < CLOUD_COUNT; i++) {
         int16_t x = (int16_t)((cloud_shift + cloud_phase[i]) % (SCREEN_W + CLOUD_W)) - CLOUD_W;
-        draw_sprite(&cloud_shape[0][0], CLOUD_W, 2, x, cloud_rows[i], false);
+        draw_sprite(&cloud_shape[0][0], CLOUD_W, 2, x, cloud_rows[i], true);
     }
 
     if (gull_x != -99) {
-        draw_sprite(&gull_frames[gull_flap][0][0], GULL_W, GULL_H, gull_x, gull_y, false);
+        draw_sprite(&gull_frames[gull_flap][0][0], GULL_W, GULL_H, gull_x, gull_y, true);
     }
 }
 
 // Surface crests, then sparser marks going down for open water, then seabed.
-static void render_ocean(uint8_t ripple) {
+static void render_ocean(uint8_t ripple, bool on) {
     for (uint8_t x = 0; x < SCREEN_W; x++) {
         uint8_t t    = (x + ripple * 2) % 8;
         uint8_t rise = (t < 4) ? t : (8 - t);  // 0..4..0
-        oled_write_pixel(x, WATER_Y + (rise / 2), true);
+        oled_write_pixel(x, WATER_Y + (rise / 2), on);
         if (x % 4 != 3) {  // dashed second line, reads as depth
-            oled_write_pixel(x, WATER_Y + 5 + ((rise + 2) / 3), true);
+            oled_write_pixel(x, WATER_Y + 5 + ((rise + 2) / 3), on);
         }
     }
 
     for (uint8_t y = WATER_Y + 12; y < SEABED_Y - 2; y += 8) {
         for (uint8_t x = (uint8_t)((y + ripple * 2) % 5); x < SCREEN_W; x += 6) {
-            oled_write_pixel(x, y, true);
-            oled_write_pixel(x + 1, y, true);
+            oled_write_pixel(x, y, on);
+            oled_write_pixel(x + 1, y, on);
         }
     }
 
     for (uint8_t x = 0; x < SCREEN_W; x++) {
-        oled_write_pixel(x, SEABED_Y, true);
+        oled_write_pixel(x, SEABED_Y, on);
     }
     for (uint8_t x = 0; x < SCREEN_W; x += 2) {
-        oled_write_pixel(x, SEABED_Y + 3, true);
+        oled_write_pixel(x, SEABED_Y + 3, on);
     }
     for (uint8_t x = 1; x < SCREEN_W; x += 3) {
-        oled_write_pixel(x, SEABED_Y + 6, true);
+        oled_write_pixel(x, SEABED_Y + 6, on);
     }
 }
 
@@ -890,10 +890,6 @@ static void render_duck(void) {
     }
 
     oled_clear();
-
-    // Sky and duck are inverted: light the band above the waterline and
-    // knock the scene out of it, so the duck reads as dark linework.
-    draw_fill(0, 0, SCREEN_W - 1, WATER_Y - 1, true);
     render_sky();
 
     for (uint8_t row = 0; row < DUCK_ROWS; row++) {
@@ -908,14 +904,17 @@ static void render_duck(void) {
             for (uint8_t dy = 0; dy < DUCK_SCALE; dy++) {
                 for (uint8_t dx = 0; dx < DUCK_SCALE; dx++) {
                     if (y + dy < WATER_Y) {
-                        oled_write_pixel(DUCK_X_OFFSET + col * DUCK_SCALE + dx, y + dy, false);
+                        oled_write_pixel(DUCK_X_OFFSET + col * DUCK_SCALE + dx, y + dy, true);
                     }
                 }
             }
         }
     }
 
-    render_ocean(duck_ripple);
+    // Only the water is inverted: light the band below the surface and knock
+    // the waves and seabed out of it, so a panel flip lands on the reverse.
+    draw_fill(0, WATER_Y, SCREEN_W - 1, SCREEN_H - 1, true);
+    render_ocean(duck_ripple, false);
 }
 
 // Both directions are done here rather than with the panel's own fade command,
