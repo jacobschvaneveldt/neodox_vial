@@ -11,6 +11,12 @@
 // Blank the screens after a minute idle rather than the ~5s default.
 #define OLED_TIMEOUT 60000
 
+// Fade out in hardware on the SSD1306 rather than cutting to black.
+// Interval is 0-15; larger is slower. Wake ramps back up in software.
+#define OLED_FADE_OUT
+#define OLED_FADE_OUT_INTERVAL 0x08
+#define OLED_FADE_IN_MS 220
+
 // Pause between the keystrokes DEL_LINE sends. Raise if it still misfires in
 // a stubborn app; lower if the delete feels sluggish.
 #define DEL_LINE_STEP_MS 12

@@ -299,6 +299,7 @@ oneshot_state os_supr_state = os_up_unqueued;
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
         tap_count++;
+        set_key_label(keycode);
 #ifdef ANIM_ON_MASTER
         // process_record_user only runs on the master, so when the master
         // draws the animation, feed it directly - no split round trip.
@@ -411,38 +412,111 @@ static void draw_dotted(uint8_t y) {
     }
 }
 
-// Left/master screen: current layer plus the four sticky mods. The 6px text
-// grid cannot centre a 4-char word in 32px, so glyphs are drawn by hand.
+// Left/master screen: last key pressed, with the layer above it and the four
+// sticky mods below. Glyphs are drawn by hand so everything centres exactly.
 #define UI_GLYPH_W   5
 #define UI_GLYPH_ADV 6
 
-// Only the characters this screen uses, lifted from QMK's own OLED font
-// (drivers/oled/glcdfont.c, GPL-2.0) so the lettering matches everywhere else.
-static const char ui_font_chars[] = "?ACDEGIJLMNOQRSTWYflptu";
+// Printable ASCII lifted from QMK's own OLED font (drivers/oled/glcdfont.c,
+// GPL-2.0) so the lettering matches the rest of the firmware.
+#define UI_FONT_FIRST ' '
+#define UI_FONT_LAST  '~'
 static const uint8_t ui_font[][UI_GLYPH_W] = {
+    {0x00, 0x00, 0x00, 0x00, 0x00},  // space
+    {0x00, 0x00, 0x5F, 0x00, 0x00},  // !
+    {0x00, 0x07, 0x00, 0x07, 0x00},  // "
+    {0x14, 0x7F, 0x14, 0x7F, 0x14},  // #
+    {0x24, 0x2A, 0x7F, 0x2A, 0x12},  // $
+    {0x23, 0x13, 0x08, 0x64, 0x62},  // %
+    {0x36, 0x49, 0x56, 0x20, 0x50},  // &
+    {0x00, 0x08, 0x07, 0x03, 0x00},  // '
+    {0x00, 0x1C, 0x22, 0x41, 0x00},  // (
+    {0x00, 0x41, 0x22, 0x1C, 0x00},  // )
+    {0x2A, 0x1C, 0x7F, 0x1C, 0x2A},  // *
+    {0x08, 0x08, 0x3E, 0x08, 0x08},  // +
+    {0x00, 0x80, 0x70, 0x30, 0x00},  // ,
+    {0x08, 0x08, 0x08, 0x08, 0x08},  // -
+    {0x00, 0x00, 0x60, 0x60, 0x00},  // .
+    {0x20, 0x10, 0x08, 0x04, 0x02},  // /
+    {0x3E, 0x51, 0x49, 0x45, 0x3E},  // 0
+    {0x00, 0x42, 0x7F, 0x40, 0x00},  // 1
+    {0x72, 0x49, 0x49, 0x49, 0x46},  // 2
+    {0x21, 0x41, 0x49, 0x4D, 0x33},  // 3
+    {0x18, 0x14, 0x12, 0x7F, 0x10},  // 4
+    {0x27, 0x45, 0x45, 0x45, 0x39},  // 5
+    {0x3C, 0x4A, 0x49, 0x49, 0x31},  // 6
+    {0x41, 0x21, 0x11, 0x09, 0x07},  // 7
+    {0x36, 0x49, 0x49, 0x49, 0x36},  // 8
+    {0x46, 0x49, 0x49, 0x29, 0x1E},  // 9
+    {0x00, 0x00, 0x14, 0x00, 0x00},  // :
+    {0x00, 0x40, 0x34, 0x00, 0x00},  // ;
+    {0x00, 0x08, 0x14, 0x22, 0x41},  // <
+    {0x14, 0x14, 0x14, 0x14, 0x14},  // =
+    {0x00, 0x41, 0x22, 0x14, 0x08},  // >
     {0x02, 0x01, 0x59, 0x09, 0x06},  // ?
+    {0x3E, 0x41, 0x5D, 0x59, 0x4E},  // @
     {0x7C, 0x12, 0x11, 0x12, 0x7C},  // A
+    {0x7F, 0x49, 0x49, 0x49, 0x36},  // B
     {0x3E, 0x41, 0x41, 0x41, 0x22},  // C
     {0x7F, 0x41, 0x41, 0x41, 0x3E},  // D
     {0x7F, 0x49, 0x49, 0x49, 0x41},  // E
+    {0x7F, 0x09, 0x09, 0x09, 0x01},  // F
     {0x3E, 0x41, 0x41, 0x51, 0x73},  // G
+    {0x7F, 0x08, 0x08, 0x08, 0x7F},  // H
     {0x00, 0x41, 0x7F, 0x41, 0x00},  // I
     {0x20, 0x40, 0x41, 0x3F, 0x01},  // J
+    {0x7F, 0x08, 0x14, 0x22, 0x41},  // K
     {0x7F, 0x40, 0x40, 0x40, 0x40},  // L
     {0x7F, 0x02, 0x1C, 0x02, 0x7F},  // M
     {0x7F, 0x04, 0x08, 0x10, 0x7F},  // N
     {0x3E, 0x41, 0x41, 0x41, 0x3E},  // O
+    {0x7F, 0x09, 0x09, 0x09, 0x06},  // P
     {0x3E, 0x41, 0x51, 0x21, 0x5E},  // Q
     {0x7F, 0x09, 0x19, 0x29, 0x46},  // R
     {0x26, 0x49, 0x49, 0x49, 0x32},  // S
     {0x03, 0x01, 0x7F, 0x01, 0x03},  // T
+    {0x3F, 0x40, 0x40, 0x40, 0x3F},  // U
+    {0x1F, 0x20, 0x40, 0x20, 0x1F},  // V
     {0x3F, 0x40, 0x38, 0x40, 0x3F},  // W
+    {0x63, 0x14, 0x08, 0x14, 0x63},  // X
     {0x03, 0x04, 0x78, 0x04, 0x03},  // Y
+    {0x61, 0x59, 0x49, 0x4D, 0x43},  // Z
+    {0x00, 0x7F, 0x41, 0x41, 0x41},  // [
+    {0x02, 0x04, 0x08, 0x10, 0x20},  // backslash
+    {0x00, 0x41, 0x41, 0x41, 0x7F},  // ]
+    {0x04, 0x02, 0x01, 0x02, 0x04},  // ^
+    {0x40, 0x40, 0x40, 0x40, 0x40},  // _
+    {0x00, 0x03, 0x07, 0x08, 0x00},  // `
+    {0x20, 0x54, 0x54, 0x78, 0x40},  // a
+    {0x7F, 0x28, 0x44, 0x44, 0x38},  // b
+    {0x38, 0x44, 0x44, 0x44, 0x28},  // c
+    {0x38, 0x44, 0x44, 0x28, 0x7F},  // d
+    {0x38, 0x54, 0x54, 0x54, 0x18},  // e
     {0x00, 0x08, 0x7E, 0x09, 0x02},  // f
+    {0x18, 0xA4, 0xA4, 0x9C, 0x78},  // g
+    {0x7F, 0x08, 0x04, 0x04, 0x78},  // h
+    {0x00, 0x44, 0x7D, 0x40, 0x00},  // i
+    {0x20, 0x40, 0x40, 0x3D, 0x00},  // j
+    {0x7F, 0x10, 0x28, 0x44, 0x00},  // k
     {0x00, 0x41, 0x7F, 0x40, 0x00},  // l
+    {0x7C, 0x04, 0x78, 0x04, 0x78},  // m
+    {0x7C, 0x08, 0x04, 0x04, 0x78},  // n
+    {0x38, 0x44, 0x44, 0x44, 0x38},  // o
     {0xFC, 0x18, 0x24, 0x24, 0x18},  // p
+    {0x18, 0x24, 0x24, 0x18, 0xFC},  // q
+    {0x7C, 0x08, 0x04, 0x04, 0x08},  // r
+    {0x48, 0x54, 0x54, 0x54, 0x24},  // s
     {0x04, 0x04, 0x3F, 0x44, 0x24},  // t
     {0x3C, 0x40, 0x40, 0x20, 0x7C},  // u
+    {0x1C, 0x20, 0x40, 0x20, 0x1C},  // v
+    {0x3C, 0x40, 0x30, 0x40, 0x3C},  // w
+    {0x44, 0x28, 0x10, 0x28, 0x44},  // x
+    {0x4C, 0x90, 0x90, 0x90, 0x7C},  // y
+    {0x44, 0x64, 0x54, 0x4C, 0x44},  // z
+    {0x00, 0x08, 0x36, 0x41, 0x00},  // {
+    {0x00, 0x00, 0x77, 0x00, 0x00},  // |
+    {0x00, 0x41, 0x36, 0x08, 0x00},  // }
+    {0x02, 0x01, 0x02, 0x04, 0x02},  // ~
 };
 
 static uint8_t text_width(const char *s) {
@@ -451,11 +525,10 @@ static uint8_t text_width(const char *s) {
 
 static void draw_text(uint8_t x, uint8_t y, const char *s, bool ink) {
     for (; *s; s++, x += UI_GLYPH_ADV) {
-        const char *slot = strchr(ui_font_chars, *s);
-        if (slot == NULL) {
-            continue;  // not in the table; leave a blank rather than garbage
+        if (*s < UI_FONT_FIRST || *s > UI_FONT_LAST) {
+            continue;  // outside the table; leave a blank rather than garbage
         }
-        const uint8_t *cols = ui_font[slot - ui_font_chars];
+        const uint8_t *cols = ui_font[*s - UI_FONT_FIRST];
         for (uint8_t i = 0; i < UI_GLYPH_W; i++) {
             for (uint8_t b = 0; b < 8; b++) {
                 if (cols[i] & (1 << b)) {
@@ -481,6 +554,72 @@ static void draw_text_centered(uint8_t y, const char *s, bool ink) {
 #define UI_TEXT_INSET 2
 
 static const uint8_t ui_pill_top[] = {57, 73, 89, 105};
+
+// Label for the last key pressed, shown on the card. Deliberately naive: a
+// combo shows its trigger keys first, then the keycode the combo produces.
+#define KEY_LABEL_MAX 5
+static char last_key[KEY_LABEL_MAX] = "";
+
+// Unshifted then shifted printable for the number row and punctuation, in
+// keycode order from KC_1 through KC_SLASH.
+static const char key_sym[][2] = {
+    {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'},
+    {'6', '^'}, {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'},
+};
+static const char key_punct[][2] = {
+    {'-', '_'}, {'=', '+'}, {'[', '{'}, {']', '}'}, {0x5C, '|'},
+    {'#', '~'}, {';', ':'}, {0x27, '"'}, {'`', '~'}, {',', '<'},
+    {'.', '>'}, {'/', '?'},
+};
+
+// Fills last_key, or leaves it alone for keycodes with nothing useful to show
+// (mods, layer keys, anything Vial remapped beyond basic keycodes).
+static void set_key_label(uint16_t keycode) {
+    bool shift = (get_mods() | get_weak_mods()) & MOD_MASK_SHIFT;
+    const char *named = NULL;
+
+    if (keycode >= KC_A && keycode <= KC_Z) {
+        last_key[0] = (shift ? 'A' : 'a') + (keycode - KC_A);
+        last_key[1] = 0;
+        return;
+    }
+    if (keycode >= KC_1 && keycode <= KC_0) {
+        last_key[0] = key_sym[keycode - KC_1][shift ? 1 : 0];
+        last_key[1] = 0;
+        return;
+    }
+    if (keycode >= KC_MINUS && keycode <= KC_SLASH) {
+        last_key[0] = key_punct[keycode - KC_MINUS][shift ? 1 : 0];
+        last_key[1] = 0;
+        return;
+    }
+
+    switch (keycode) {
+        case KC_ENTER:     named = "ENT";  break;
+        case KC_ESCAPE:    named = "ESC";  break;
+        case KC_BSPC:      named = "BSP";  break;
+        case KC_TAB:       named = "TAB";  break;
+        case KC_SPACE:     named = "SPC";  break;
+        case KC_DELETE:    named = "DEL";  break;
+        case KC_HOME:      named = "HOM";  break;
+        case KC_END:       named = "END";  break;
+        case KC_PGUP:      named = "PGU";  break;
+        case KC_PGDN:      named = "PGD";  break;
+        case KC_LEFT:      named = "LFT";  break;
+        case KC_RIGHT:     named = "RGT";  break;
+        case KC_UP:        named = "UP";   break;
+        case KC_DOWN:      named = "DWN";  break;
+        case DEL_LINE:     named = "DLN";  break;
+        case ANIM_TOG:     named = "ANIM"; break;
+        default: return;  // nothing sensible to show; keep the previous key
+    }
+    uint8_t i = 0;
+    while (named[i] != 0 && i < KEY_LABEL_MAX - 1) {
+        last_key[i] = named[i];
+        i++;
+    }
+    last_key[i] = 0;
+}
 
 static const char *layer_name(uint8_t layer) {
     switch (layer) {
@@ -530,20 +669,23 @@ static void render_layer_status(void) {
     // something actually changed rather than on every scan.
     static uint8_t last_layer = 0xFF;
     static uint8_t last_mods  = 0xFF;
-    if (active_layer == last_layer && mod_bits == last_mods) {
+    static char    last_shown[KEY_LABEL_MAX] = "";
+    if (active_layer == last_layer && mod_bits == last_mods && strcmp(last_shown, last_key) == 0) {
         return;
     }
     last_layer = active_layer;
     last_mods  = mod_bits;
+    memcpy(last_shown, last_key, KEY_LABEL_MAX);
 
     // Clearing is required, not just tidy: a pill going from filled back to
     // outlined would otherwise keep its old fill.
     oled_clear();
 
-    draw_text_centered(UI_CAPTION_Y, "LAYER", true);
+    // Layer as the caption, last key pressed in the card below it.
+    draw_text_centered(UI_CAPTION_Y, layer_name(active_layer), true);
 
     draw_round_rect(0, UI_CARD_TOP, SCREEN_W - 1, UI_CARD_BOT);
-    draw_text_centered(UI_NAME_Y, layer_name(active_layer), true);
+    draw_text_centered(UI_NAME_Y, last_key, true);
 
     draw_dotted(UI_RULE_Y);
 
@@ -822,9 +964,34 @@ static void render_duck(void) {
     render_ocean(duck_ripple);
 }
 
-// One half draws the animation, the other the layer + sticky mods. Which is
+// OLED_FADE_OUT hands the fade to the panel, but waking is abrupt: oled_on()
+// just cancels the fade. Ramp the contrast back up so both directions match.
+static void fade_in_task(void) {
+    static bool     was_on = true;
+    static uint32_t woke_at = 0;
+    bool            on = is_oled_on();
+
+    if (on && !was_on) {
+        woke_at = timer_read32();  // just came back; start the ramp
+    }
+    was_on = on;
+    if (!on) {
+        return;
+    }
+
+    uint32_t elapsed = timer_elapsed32(woke_at);
+    if (elapsed >= OLED_FADE_IN_MS) {
+        oled_set_brightness(OLED_BRIGHTNESS);
+    } else {
+        oled_set_brightness((uint8_t)((uint32_t)OLED_BRIGHTNESS * elapsed / OLED_FADE_IN_MS));
+    }
+}
+
+// One half draws the animation, the other the key/layer readout. Which is
 // which follows ANIM_ON_MASTER.
 bool oled_task_user(void) {
+    fade_in_task();
+
     if (!half_draws_anim()) {
         render_layer_status();
     } else if (anim_mode == ANIM_BONGO) {
