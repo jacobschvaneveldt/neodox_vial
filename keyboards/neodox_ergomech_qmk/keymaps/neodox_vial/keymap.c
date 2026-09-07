@@ -742,10 +742,10 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
 #define WATER_Y (DUCK_Y_OFFSET + 30)
 #define SEABED_Y 119
 
-// A fixed bob cycle: starts on the first keystroke, loops while you type, and
-// always finishes the cycle when you stop rather than freezing mid-bob.
+// A fixed bob cycle: starts on the first keystroke and keeps looping until
+// ANIM_HOLD_MS after the last one, always finishing the cycle it is in.
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
-#define TYPING_IDLE_MS 350 // no keys for this long counts as "stopped typing"
+#define ANIM_HOLD_MS 10000 // keep bobbing this long after the last keystroke
 
 static const uint8_t bob_cycle[] = {0, 1, 2, 2, 1, 0};
 #define BOB_FRAMES (sizeof(bob_cycle) / sizeof(bob_cycle[0]))
@@ -907,8 +907,8 @@ static void render_duck(void) {
         }
 
         // Only allowed to stop at the end of a cycle, so it never freezes
-        // mid-bob - if typing has stopped by then, settle here.
-        if (duck_frame == 0 && timer_elapsed32(duck_last_tap) > TYPING_IDLE_MS) {
+        // mid-bob - so the real stop is up to one cycle past ANIM_HOLD_MS.
+        if (duck_frame == 0 && timer_elapsed32(duck_last_tap) > ANIM_HOLD_MS) {
             duck_animating = false;
         }
     }
