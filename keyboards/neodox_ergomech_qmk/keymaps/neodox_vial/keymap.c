@@ -249,6 +249,14 @@ static void right_screen_tap(void) {
 #endif
 }
 
+// Both halves time their screens off this. The master stamps it on every key
+// and encoder turn; the slave stamps it when that keypress arrives over RPC.
+static uint32_t last_activity = 0;
+
+static void note_activity(void) {
+    last_activity = timer_read32();
+}
+
 static void tap_sync_slave_handler(uint8_t in_len, const void *in_data, uint8_t out_len, void *out_data) {
     const right_screen_sync_t *in = (const right_screen_sync_t *)in_data;
 
@@ -265,7 +273,7 @@ static void tap_sync_slave_handler(uint8_t in_len, const void *in_data, uint8_t 
     if (in->taps != last_seen) {
         last_seen = in->taps;
         right_screen_tap();
-        oled_on();  // typing should wake this screen too, not just the master's
+        note_activity();  // typing wakes this screen too, not just the master's
     }
 }
 
@@ -294,7 +302,6 @@ oneshot_state os_ctrl_state = os_up_unqueued;
 oneshot_state os_alt_state  = os_up_unqueued;
 oneshot_state os_supr_state = os_up_unqueued;
 
-// DEL_LINE selects the whole line and deletes it; everything else just
 #ifdef OLED_ENABLE
 // Label for the last key pressed, shown on the card. Deliberately naive: a
 // combo shows its trigger keys first, then the keycode the combo produces.
@@ -363,10 +370,12 @@ static void set_key_label(uint16_t keycode) {
 }
 #endif
 
+// DEL_LINE selects the whole line and deletes it; everything else just
 // feeds the four sticky-mod state machines.
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
         tap_count++;
+        note_activity();
 #ifdef OLED_ENABLE
         set_key_label(keycode);
 #endif
@@ -968,33 +977,50 @@ static void render_duck(void) {
     render_ocean(duck_ripple);
 }
 
-// OLED_FADE_OUT hands the fade to the panel, but waking is abrupt: oled_on()
-// just cancels the fade. Ramp the contrast back up so both directions match.
-static void fade_in_task(void) {
-    static bool     was_on = true;
-    static uint32_t woke_at = 0;
-    bool            on = is_oled_on();
+// Both directions are done here rather than with the panel's own fade command,
+// so the timing is exact and identical on the two halves.
+static void screen_power_task(void) {
+    static bool     lit        = true;
+    static bool     fading_out = false;
+    static uint32_t wake_at    = 0;
 
-    if (on && !was_on) {
-        woke_at = timer_read32();  // just came back; start the ramp
-    }
-    was_on = on;
-    if (!on) {
+    uint32_t idle = timer_elapsed32(last_activity);
+
+    if (idle >= SCREEN_ON_MS + SCREEN_FADE_MS) {
+        if (lit) {
+            oled_off();
+            lit = false;
+        }
         return;
     }
 
-    uint32_t elapsed = timer_elapsed32(woke_at);
-    if (elapsed >= OLED_FADE_IN_MS) {
-        oled_set_brightness(OLED_BRIGHTNESS);
-    } else {
-        oled_set_brightness((uint8_t)((uint32_t)OLED_BRIGHTNESS * elapsed / OLED_FADE_IN_MS));
+    if (idle >= SCREEN_ON_MS) {
+        uint32_t step = idle - SCREEN_ON_MS;
+        fading_out = true;
+        oled_set_brightness((uint8_t)(OLED_BRIGHTNESS - (uint32_t)OLED_BRIGHTNESS * step / SCREEN_FADE_MS));
+        return;
     }
+
+    if (!lit) {
+        oled_set_brightness(0);
+        oled_on();
+        lit     = true;
+        wake_at = timer_read32();
+    } else if (fading_out) {
+        // Woken mid-fade: start the ramp from the level the fade reached, so
+        // the brightness carries on smoothly instead of snapping back.
+        wake_at = timer_read32() - ((uint32_t)oled_get_brightness() * SCREEN_FADE_MS / OLED_BRIGHTNESS);
+    }
+    fading_out = false;
+
+    uint32_t since = timer_elapsed32(wake_at);
+    oled_set_brightness(since >= SCREEN_FADE_MS
+                        ? OLED_BRIGHTNESS
+                        : (uint8_t)((uint32_t)OLED_BRIGHTNESS * since / SCREEN_FADE_MS));
 }
 
-// One half draws the animation, the other the key/layer readout. Which is
-// which follows ANIM_ON_MASTER.
 bool oled_task_user(void) {
-    fade_in_task();
+    screen_power_task();
 
     if (!half_draws_anim()) {
         render_layer_status();

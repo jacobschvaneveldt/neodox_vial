@@ -8,14 +8,14 @@
 // Carries a keypress counter to the slave so its cat can tap per key.
 #define SPLIT_TRANSACTION_IDS_USER RPC_ID_USER_TAP
 
-// Blank the screens after a minute idle rather than the ~5s default.
-#define OLED_TIMEOUT 60000
+// The driver's own timeout cuts to black with no warning and, because drawing
+// counts as activity, fires later on the animated half. Handled in keymap.c.
+#define OLED_TIMEOUT 0
 
-// Fade out in hardware on the SSD1306 rather than cutting to black.
-// Interval is 0-15; larger is slower. Wake ramps back up in software.
-#define OLED_FADE_OUT
-#define OLED_FADE_OUT_INTERVAL 0x08
-#define OLED_FADE_IN_MS 220
+// How long the screens stay lit after the last key, and how long they take to
+// fade out and back in. Both halves work off the same keystroke clock.
+#define SCREEN_ON_MS   30000
+#define SCREEN_FADE_MS 1500
 
 // Pause between the keystrokes DEL_LINE sends. Raise if it still misfires in
 // a stubborn app; lower if the delete feels sluggish.
