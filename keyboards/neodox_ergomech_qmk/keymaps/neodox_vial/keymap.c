@@ -5,9 +5,7 @@
 #include "bongo_cat.h"
 
 // Right/slave screen animation, switched at runtime by ANIM_TOG. The cat is
-// 128x32 art so it needs a landscape rotation and reads sideways on a
-// vertically mounted screen; the duck is drawn for the 32x128 column so it
-// sits upright. Both are compiled in and the rotation follows the mode.
+// 128x32 landscape art, the duck a 32x128 column; rotation follows the mode.
 enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 #define ANIM_DEFAULT ANIM_DUCK
 
@@ -15,9 +13,7 @@ enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 // is the half that actually draws) over the split link.
 static uint8_t anim_mode = ANIM_DEFAULT;
 
-// Uncomment to draw the animation on the LEFT/master screen instead, so only
-// that half needs reflashing while tuning it. Normally the animation lives on
-// the right and the layer readout on the left.
+// Uncomment to draw the animation on the master screen while tuning it.
 // #define ANIM_ON_MASTER
 
 // Which half draws the animation; the other draws the layer/mod readout.
@@ -160,9 +156,8 @@ static const vial_combo_entry_t default_combos[] = {
 // The three sets above are seeded in blocks of this size, in layout order.
 #define COMBOS_PER_LAYOUT 5
 
-// Combos match on keycodes, not physical positions or layers - so Night's
-// D+J (Escape) would also fire on QWERTY, which has its own D and J. Scope
-// each seeded block to the layout it was drawn for.
+// Combos match on keycodes, not layers - Night's D+J would also fire on
+// QWERTY. Scope each seeded block to the layout it was drawn for.
 bool combo_should_trigger(uint16_t combo_index, combo_t *combo, uint16_t keycode, keyrecord_t *record) {
     // Nothing fires while GAME is toggled on: a stray letter chord mid-game
     // sending Escape or Ctrl+Backspace is the worst case for this.
@@ -305,9 +300,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
         tap_count++;
 #ifdef ANIM_ON_MASTER
-        // The master draws the animation here, and process_record_user only
-        // runs on the master - so feed it directly rather than waiting for the
-        // tap to come back over the split link.
+        // process_record_user only runs on the master, so when the master
+        // draws the animation, feed it directly - no split round trip.
         right_screen_tap();
 #endif
     }
@@ -321,11 +315,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
     if (keycode == DEL_LINE) {
         if (record->event.pressed) {
-            // Select from line start through the newline, then delete it.
-            // The waits matter: fired back-to-back these get dropped or
-            // reordered by apps that filter synthetic input (Electron apps,
-            // browsers, RDP/VM sessions), which is why this worked in some
-            // programs and not others.
+            // Select from line start through the newline, then delete. The
+            // waits matter: apps that filter synthetic input drop fast taps.
             tap_code(KC_HOME);
             wait_ms(DEL_LINE_STEP_MS);
             register_code(KC_LSFT);
@@ -363,9 +354,8 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 #ifdef OLED_ENABLE
-// The slave's rotation depends on which animation is showing: bongo frames are
-// 128x32 landscape, the duck is drawn for the portrait column. Swap 180 for 0
-// to flip which end the cat's table sits at.
+// Rotation follows the animation: bongo is landscape, the duck portrait.
+// Swap 180 for 0 to flip which end the cat's table sits at.
 oled_rotation_t oled_init_user(oled_rotation_t rotation) {
     if (half_draws_anim() && anim_mode == ANIM_BONGO) {
         return OLED_ROTATION_180;
@@ -377,9 +367,8 @@ oled_rotation_t oled_init_user(oled_rotation_t rotation) {
 #define SCREEN_W 32
 #define SCREEN_H 128
 
-// QMK's OLED driver gives us text on a fixed 6x8 character grid and a single
-// pixel plot, and nothing else - no shape API - so the framing below is drawn
-// a pixel at a time.
+// The OLED driver offers a fixed 6x8 text grid and a single pixel plot - no
+// shape API - so the framing below is drawn a pixel at a time.
 static void draw_hline(uint8_t x0, uint8_t x1, uint8_t y, bool on) {
     for (uint8_t x = x0; x <= x1; x++) {
         oled_write_pixel(x, y, on);
@@ -422,17 +411,13 @@ static void draw_dotted(uint8_t y) {
     }
 }
 
-// Left/master screen: current layer plus the four sticky mods.
-//
-// The driver can only place text on a fixed 6px character grid, which leaves a
-// 4-character word sitting 3px right of centre inside a 32px-wide box. So the
-// glyphs are drawn here instead: the table below is lifted from QMK's own OLED
-// font (drivers/oled/glcdfont.c, GPL-2.0, same lettering as everywhere else),
-// holding just the characters this screen uses, and draw_text() places them at
-// any x. Everything on the screen is then centred to the pixel.
+// Left/master screen: current layer plus the four sticky mods. The 6px text
+// grid cannot centre a 4-char word in 32px, so glyphs are drawn by hand.
 #define UI_GLYPH_W   5
 #define UI_GLYPH_ADV 6
 
+// Only the characters this screen uses, lifted from QMK's own OLED font
+// (drivers/oled/glcdfont.c, GPL-2.0) so the lettering matches everywhere else.
 static const char ui_font_chars[] = "?ACDEGIJLMNOQRSTWYflptu";
 static const uint8_t ui_font[][UI_GLYPH_W] = {
     {0x02, 0x01, 0x59, 0x09, 0x06},  // ?
@@ -485,9 +470,8 @@ static void draw_text_centered(uint8_t y, const char *s, bool ink) {
     draw_text((SCREEN_W - text_width(s)) / 2, y, s, ink);
 }
 
-// One visual language throughout: the layer name sits in the same rounded pill
-// as the mods, just a taller one, and the caption above it is the only plain
-// text on the screen.
+// One visual language: the layer name sits in the same rounded pill as the
+// mods, just taller, and the caption is the only plain text on the screen.
 #define UI_CAPTION_Y 11
 #define UI_CARD_TOP  23
 #define UI_CARD_BOT  44
@@ -570,9 +554,7 @@ static void render_layer_status(void) {
 }
 
 // Sailor duck, a 1:1 copy of the reference art. The reference is itself pixel
-// art on a 25px grid, so this is sampled on that native grid - 28x32 cells,
-// one screen pixel each - lighting a cell exactly where the reference cell is
-// black. No downsampling and no hand-tuning, so it matches the source.
+// art on a 25px grid, sampled here at one screen pixel per cell.
 #define DUCK_SCALE 1
 #define DUCK_COLS 28
 #define DUCK_ROWS 32
@@ -613,15 +595,13 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
 };
 
-// Blows the bitmap up by DUCK_SCALE and draws it a pixel at a time.
-// Scene layout, top to bottom: sky (clouds + passing gulls), the duck riding
-// the surface, open water, then the seabed at the bottom of the panel.
+// Scene, top to bottom: sky with clouds and gulls, the duck on the surface,
+// open water, then the seabed. The bitmap is scaled by DUCK_SCALE.
 #define WATER_Y (DUCK_Y_OFFSET + 30)
 #define SEABED_Y 119
 
-// A fixed bob cycle: starts on the first keystroke, keeps looping while you
-// type, and once you stop it always runs out the rest of the cycle rather than
-// freezing mid-bob.
+// A fixed bob cycle: starts on the first keystroke, loops while you type, and
+// always finishes the cycle when you stop rather than freezing mid-bob.
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
 #define TYPING_IDLE_MS 350 // no keys for this long counts as "stopped typing"
 
@@ -806,9 +786,8 @@ static void render_duck(void) {
 
     uint8_t bob = duck_animating ? bob_cycle[duck_frame] : 0;
 
-    // Only redraw when something actually moved - the scene is well over a
-    // thousand pixel writes plus a clear, and repeating that every scan would
-    // just saturate the I2C bus.
+    // Only redraw when something moved - the scene is over a thousand pixel
+    // writes plus a clear, which would saturate the I2C bus every scan.
     static uint8_t last_bob = 255;
     if (bob != last_bob) {
         changed  = true;
