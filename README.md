@@ -50,11 +50,17 @@ Point QMK at this repo once:
 qmk config user.overlay_dir="/full/path/to/neodox_vial"
 ```
 
-Then from anywhere:
+Then build **from the root of the vial-qmk checkout**:
 
 ```
+cd /path/to/vial-qmk
 qmk userspace-compile
 ```
+
+The working directory matters. This QMK sets `QMK_FIRMWARE = Path.cwd()`, so
+running from anywhere else sends it looking for the board in whatever tree the
+`qmk` launcher falls back to — usually `~/qmk_firmware`, a stock checkout with
+no Neodox board in it — and you get `ValueError: Invalid keyboard`.
 
 ## Flashing
 
