@@ -335,13 +335,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
     if (keycode == DEL_LINE) {
         if (record->event.pressed) {
-            // Select from line start through the newline, then delete. The
-            // waits matter: apps that filter synthetic input drop fast taps.
+            // Select from line start to line end, then delete. The waits
+            // matter: apps that filter synthetic input drop fast taps.
             tap_code(KC_HOME);
             wait_ms(DEL_LINE_STEP_MS);
             register_code(KC_LSFT);
             wait_ms(DEL_LINE_STEP_MS);
-            tap_code(KC_DOWN);
+            tap_code(KC_END);
             wait_ms(DEL_LINE_STEP_MS);
             unregister_code(KC_LSFT);
             wait_ms(DEL_LINE_STEP_MS);
