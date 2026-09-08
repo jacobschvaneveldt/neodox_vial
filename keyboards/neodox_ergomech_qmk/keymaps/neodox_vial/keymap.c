@@ -749,11 +749,17 @@ static uint8_t gull_speed = 1;
 #define FISH_LANES 3
 #define FISH_STEP_MS (BOB_FRAME_MS * 3)  // a third of gull pace
 #define FISH_GAP_FRAMES 40
+#define SPECK_SPACING 31  // roughly one lit pixel in 31 down there
 
-static const uint8_t fish_shape[FISH_H][FISH_W] = {
-    {0, 1, 1, 1, 0, 1},
-    {1, 1, 1, 1, 1, 1},
-    {0, 1, 1, 1, 0, 1},
+// Indexed by direction so a fish faces where it is going: tail trailing
+// behind, head leading. [0] swims right, [1] swims left.
+static const uint8_t fish_shape[2][FISH_H][FISH_W] = {
+    {{1, 0, 1, 1, 1, 0},
+     {1, 1, 1, 1, 1, 1},
+     {1, 0, 1, 1, 1, 0}},
+    {{0, 1, 1, 1, 0, 1},
+     {1, 1, 1, 1, 1, 1},
+     {0, 1, 1, 1, 0, 1}},
 };
 static const uint8_t fish_rows[FISH_LANES] = {WATER_Y + 14, WATER_Y + 21, WATER_Y + 28};
 
@@ -844,9 +850,19 @@ static void render_water(uint8_t ripple) {
         }
     }
 
+    // A sparse scatter below the fade, so the depths read as water rather
+    // than as the same black as the sky. Fish simply draw over them.
+    for (uint8_t y = WATER_Y + WATER_SOLID + WATER_FADE; y < SCREEN_H; y++) {
+        for (uint8_t x = 0; x < SCREEN_W; x++) {
+            if ((x * 13 + y * 7) % SPECK_SPACING == 0) {
+                oled_write_pixel(x, y, true);
+            }
+        }
+    }
+
     for (uint8_t i = 0; i < FISH_LANES; i++) {
         if (fish_x[i] != -99) {
-            draw_sprite(&fish_shape[0][0], FISH_W, FISH_H, fish_x[i], fish_rows[i], true);
+            draw_sprite(&fish_shape[fish_left[i]][0][0], FISH_W, FISH_H, fish_x[i], fish_rows[i], true);
         }
     }
 }
