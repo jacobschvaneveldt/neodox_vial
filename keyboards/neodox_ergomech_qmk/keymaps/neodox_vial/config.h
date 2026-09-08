@@ -5,6 +5,11 @@
 
 #define DYNAMIC_KEYMAP_LAYER_COUNT 7
 
+// Bootmagic only checks rows the half actually scans, and the right half
+// owns 5-9, so it needs its own key: the top right corner.
+#define BOOTMAGIC_ROW_RIGHT 5
+#define BOOTMAGIC_COLUMN_RIGHT 0
+
 // Carries a keypress counter to the slave so its cat can tap per key.
 #define SPLIT_TRANSACTION_IDS_USER RPC_ID_USER_TAP
 
