@@ -25,7 +25,6 @@ static inline bool half_draws_anim(void) {
 void duck_tap(void);
 #endif
 
-// Index 0 is the power-on default; DF() on RAISE picks the base layout.
 enum layers {
     _QWERTY,
     _NIGHT,
@@ -132,7 +131,6 @@ static const vial_combo_entry_t default_combos[] = {
     { .input = { KC_SCLN, KC_W, 0, 0 },          .output = KC_ENTER },
     { .input = { KC_V, KC_J, 0, 0 },             .output = C(KC_BSPC) },
 
-    // Gallium, on the same physical positions as the QWERTY set.
     { .input = { KC_Q, KC_M, KC_QUOT, KC_SCLN }, .output = DEL_LINE },
     { .input = { KC_C, KC_M, 0, 0 },             .output = KC_ESCAPE },
     { .input = { KC_QUOT, KC_SCLN, 0, 0 },       .output = KC_BSPC },
@@ -217,7 +215,7 @@ typedef struct {
     uint8_t game;
 } right_screen_sync_t;
 
-// Game is easy to leave on by accident, so both panels invert while it is.
+// Inverts OLED colors
 static bool game_active = false;
 
 static void right_screen_tap(void) {
@@ -693,7 +691,7 @@ static uint8_t gull_speed = 1;
 #define FISH_W 6
 #define FISH_H 3
 #define FISH_LANES 3
-#define FISH_STEP_MS (BOB_FRAME_MS * 3)  // a third of gull pace
+#define FISH_STEP_MS (BOB_FRAME_MS * 3) 
 #define FISH_GAP_FRAMES 40
 #define BUBBLE_COUNT 5
 #define BUBBLE_NONE 255
