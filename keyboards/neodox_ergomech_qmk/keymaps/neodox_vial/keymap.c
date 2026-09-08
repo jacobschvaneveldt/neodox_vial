@@ -4,13 +4,11 @@
 #include "oneshot.h"
 #include "bongo_cat.h"
 
-// Right/slave screen animation, switched at runtime by ANIM_TOG. The cat is
-// 128x32 landscape art, the duck a 32x128 column; rotation follows the mode.
+// Animation for the half that isn't showing the readout; ANIM_TOG switches it.
 enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 #define ANIM_DEFAULT ANIM_DUCK
 
-// Lives on both halves: the master owns it, and pushes it to the slave (which
-// is the half that actually draws) over the split link.
+// The master owns the mode and pushes it to the slave, which draws.
 static uint8_t anim_mode = ANIM_DEFAULT;
 
 // Uncomment to draw the animation on the master screen while tuning it.
@@ -25,14 +23,12 @@ static inline bool half_draws_anim(void) {
 #endif
 }
 
-// Defined further down with the duck art; declared here because the split tap
-// handler above it needs to call it. (bongo_tap() comes from bongo_cat.h.)
+// Defined with the duck art below; declared here for the tap handler above.
 #ifdef OLED_ENABLE
 void duck_tap(void);
 #endif
 
-// Layer order. Index 0 is the power-on default; DF() keys on RAISE switch
-// between the three base layouts (QWERTY / Night / Gallium).
+// Index 0 is the power-on default; DF() on RAISE picks the base layout.
 enum layers {
     _QWERTY,
     _NIGHT,
@@ -129,8 +125,7 @@ const uint16_t PROGMEM encoder_map[][2][2] = {
 };
 #endif
 
-// Default combos. Vial owns key_combos[] and keeps combos in EEPROM, so these
-// are only seeded on a blank EEPROM; afterwards edit them in the Vial app.
+// Seeded only into a blank EEPROM; after that Vial owns them.
 static const vial_combo_entry_t default_combos[] = {
     { .input = { KC_X, KC_C, KC_COMM, KC_DOT }, .output = DEL_LINE },
     { .input = { KC_V, KC_C, 0, 0 },            .output = KC_ESCAPE },
@@ -144,8 +139,7 @@ static const vial_combo_entry_t default_combos[] = {
     { .input = { KC_SCLN, KC_W, 0, 0 },          .output = KC_ENTER },
     { .input = { KC_V, KC_J, 0, 0 },             .output = C(KC_BSPC) },
 
-    // Gallium, position-translated the same way as the original QWERTY set
-    // (same physical row-3 positions: X/C -> Q/M, V -> W, M -> P, COMM/DOT -> QUOT/SCLN).
+    // Gallium, on the same physical positions as the QWERTY set.
     { .input = { KC_Q, KC_M, KC_QUOT, KC_SCLN }, .output = DEL_LINE },
     { .input = { KC_C, KC_M, 0, 0 },             .output = KC_ESCAPE },
     { .input = { KC_QUOT, KC_SCLN, 0, 0 },       .output = KC_BSPC },
@@ -156,17 +150,14 @@ static const vial_combo_entry_t default_combos[] = {
 // The three sets above are seeded in blocks of this size, in layout order.
 #define COMBOS_PER_LAYOUT 5
 
-// Combos match on keycodes, not layers - Night's D+J would also fire on
-// QWERTY. Scope each seeded block to the layout it was drawn for.
+// Combos match keycodes, not layers, so each block is scoped to its layout.
 bool combo_should_trigger(uint16_t combo_index, combo_t *combo, uint16_t keycode, keyrecord_t *record) {
-    // Nothing fires while GAME is toggled on: a stray letter chord mid-game
-    // sending Escape or Ctrl+Backspace is the worst case for this.
+    // A stray letter chord mid-game sending Escape is the worst case.
     if (layer_state_is(_GAME)) {
         return false;
     }
 
-    // Combos added later in the Vial GUI land past the seeded blocks; leave
-    // those global rather than guessing which layout they belong to.
+    // Combos added in Vial land past the seeded blocks, so leave them global.
     if (combo_index >= COMBOS_PER_LAYOUT * 3) {
         return true;
     }
@@ -179,13 +170,11 @@ bool combo_should_trigger(uint16_t combo_index, combo_t *combo, uint16_t keycode
     }
 }
 
-// The matcher reads these RAM arrays, and they are loaded from EEPROM before
-// our seeding runs - so we mirror vial.c's private reload_combo() by hand below.
+// The matcher reads these; EEPROM loads them before the seeding runs.
 extern combo_t  key_combos[VIAL_COMBO_ENTRIES];
 extern uint16_t key_combos_keys[VIAL_COMBO_ENTRIES][5];
 
-// Runs once on a blank/reset EEPROM: seed the combos above into storage AND
-// into RAM, since nothing reloads RAM again this boot.
+// Seeds combos into EEPROM and RAM; nothing reloads RAM again this boot.
 void eeconfig_init_user(void) {
     for (uint8_t i = 0; i < ARRAY_SIZE(default_combos); i++) {
         dynamic_keymap_set_combo(i, &default_combos[i]);
@@ -228,8 +217,7 @@ bool is_oneshot_ignored_key(uint16_t keycode) {
     }
 }
 
-// The animation lives on the slave, but only the master sees keypresses - so
-// the master counts taps and pushes the count over the split link.
+// Only the master sees keypresses, so it counts taps for the slave.
 static uint8_t tap_count = 0;
 
 // What the master pushes to the slave each time either field changes.
@@ -239,8 +227,7 @@ typedef struct {
     uint8_t game;
 } right_screen_sync_t;
 
-// Game is a toggle layer that is easy to leave on by accident, so both panels
-// invert while it is active - unmissable, and one I2C command to switch.
+// Game is easy to leave on by accident, so both panels invert while it is.
 static bool game_active = false;
 
 // Feed a tap to whichever animation is currently showing.
@@ -254,8 +241,7 @@ static void right_screen_tap(void) {
 #endif
 }
 
-// Both halves time their screens off this. The master stamps it on every key
-// and encoder turn; the slave stamps it when that keypress arrives over RPC.
+// Both halves time their screens off this, stamped on every keypress.
 static uint32_t last_activity = 0;
 
 static void note_activity(void) {
@@ -266,8 +252,7 @@ static void tap_sync_slave_handler(uint8_t in_len, const void *in_data, uint8_t 
     const right_screen_sync_t *in = (const right_screen_sync_t *)in_data;
 
 #ifdef OLED_ENABLE
-    // Mode change: the two animations need different rotations, so re-init the
-    // panel. oled_init() re-derives rotation via oled_init_user() and clears.
+    // The two animations need different rotations, so re-init on a mode change.
     if (in->anim != anim_mode) {
         anim_mode = in->anim;
         oled_init(OLED_ROTATION_270);  // arg is overridden by oled_init_user()
@@ -313,15 +298,13 @@ oneshot_state os_ctrl_state = os_up_unqueued;
 oneshot_state os_alt_state  = os_up_unqueued;
 oneshot_state os_supr_state = os_up_unqueued;
 
-// DEL_LINE selects the whole line and deletes it; everything else just
-// feeds the four sticky-mod state machines.
+// DEL_LINE aside, this feeds the four sticky-mod state machines.
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
         tap_count++;
         note_activity();
 #ifdef ANIM_ON_MASTER
-        // process_record_user only runs on the master, so when the master
-        // draws the animation, feed it directly - no split round trip.
+        // Only runs on the master, so feed its own animation directly.
         right_screen_tap();
 #endif
     }
@@ -335,8 +318,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
     if (keycode == DEL_LINE) {
         if (record->event.pressed) {
-            // Select from line start to line end, then delete. The waits
-            // matter: apps that filter synthetic input drop fast taps.
+            // The waits matter: apps that filter synthetic input drop fast taps.
             tap_code(KC_HOME);
             wait_ms(DEL_LINE_STEP_MS);
             register_code(KC_LSFT);
@@ -374,8 +356,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 #ifdef OLED_ENABLE
-// Rotation follows the animation: bongo is landscape, the duck portrait.
-// Swap 180 for 0 to flip which end the cat's table sits at.
+// Bongo is landscape art and the duck portrait, so rotation follows the mode.
 oled_rotation_t oled_init_user(oled_rotation_t rotation) {
     if (half_draws_anim() && anim_mode == ANIM_BONGO) {
         return OLED_ROTATION_180;
@@ -387,8 +368,7 @@ oled_rotation_t oled_init_user(oled_rotation_t rotation) {
 #define SCREEN_W 32
 #define SCREEN_H 128
 
-// The OLED driver offers a fixed 6x8 text grid and a single pixel plot - no
-// shape API - so the framing below is drawn a pixel at a time.
+// The driver has no shape API, so the framing is drawn a pixel at a time.
 static void draw_hline(uint8_t x0, uint8_t x1, uint8_t y, bool on) {
     for (uint8_t x = x0; x <= x1; x++) {
         oled_write_pixel(x, y, on);
@@ -407,8 +387,7 @@ static void draw_fill(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, bool on) {
     }
 }
 
-// Knocking the four corner pixels back out is what makes a box read as
-// rounded at this size.
+// Knocking the corners back out is what makes a box read as rounded.
 static void draw_corners(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
     oled_write_pixel(x0, y0, false);
     oled_write_pixel(x1, y0, false);
@@ -431,13 +410,11 @@ static void draw_dotted(uint8_t y) {
     }
 }
 
-// Left/master screen: last key pressed, with the layer above it and the four
-// sticky mods below. Glyphs are drawn by hand so everything centres exactly.
+// Left screen: the active layer and the four sticky mods.
 #define UI_GLYPH_W   5
 #define UI_GLYPH_ADV 6
 
-// Printable ASCII lifted from QMK's own OLED font (drivers/oled/glcdfont.c,
-// GPL-2.0) so the lettering matches the rest of the firmware.
+// Printable ASCII from QMK's glcdfont.c (GPL-2.0), placed for exact centring.
 #define UI_FONT_FIRST ' '
 #define UI_FONT_LAST  '~'
 static const uint8_t ui_font[][UI_GLYPH_W] = {
@@ -562,8 +539,7 @@ static void draw_text_centered(uint8_t y, const char *s, bool ink) {
     draw_text((SCREEN_W - text_width(s)) / 2, y, s, ink);
 }
 
-// One visual language: the layer name sits in the same rounded pill as the
-// mods, just taller, and the caption is the only plain text on the screen.
+// The layer name uses the same pill as the mods, just a taller one.
 #define UI_CAPTION_Y 11
 #define UI_CARD_TOP  23
 #define UI_CARD_BOT  44
@@ -609,8 +585,7 @@ static void render_mod_pill(uint8_t idx, const char *label, bool active) {
 }
 
 static void render_layer_status(void) {
-    // layer_state is 0 with no overlay held, so fall back to default_layer_state
-    // or this always reads "layer 0" regardless of what DF() selected.
+    // layer_state is 0 with no overlay held, so fall back to the default layer.
     uint8_t active_layer = layer_state ? get_highest_layer(layer_state) : get_highest_layer(default_layer_state);
     // Master-only state, so no split sync needed.
     uint8_t mod_bits = (os_shft_state != os_up_unqueued ? 1 : 0)
@@ -618,8 +593,7 @@ static void render_layer_status(void) {
                      | (os_alt_state  != os_up_unqueued ? 4 : 0)
                      | (os_supr_state != os_up_unqueued ? 8 : 0);
 
-    // The frame is a few hundred pixel writes plus a clear, so redraw only when
-    // something actually changed rather than on every scan.
+    // Redraw only on change; a frame is hundreds of writes plus a clear.
     static uint8_t last_layer = 0xFF;
     static uint8_t last_mods  = 0xFF;
     if (active_layer == last_layer && mod_bits == last_mods) {
@@ -628,8 +602,7 @@ static void render_layer_status(void) {
     last_layer = active_layer;
     last_mods  = mod_bits;
 
-    // Clearing is required, not just tidy: a pill going from filled back to
-    // outlined would otherwise keep its old fill.
+    // Required, not tidy: a pill going filled to outlined would keep its fill.
     oled_clear();
 
     draw_text_centered(UI_CAPTION_Y, "LAYER", true);
@@ -645,8 +618,7 @@ static void render_layer_status(void) {
     render_mod_pill(3, "Sup", mod_bits & 8);
 }
 
-// Sailor duck: the reference art sampled 1:1 on its native 25px grid. It is
-// drawn knocked out of a lit sky, so the art itself stays a plain outline.
+// Sailor duck, sampled 1:1 from the reference art on its native 25px grid.
 #define DUCK_SCALE 1
 #define DUCK_COLS 28
 #define DUCK_ROWS 32
@@ -687,14 +659,12 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
 };
 
-// Scene, top to bottom: sky with clouds and gulls, the duck on the surface,
-// open water, then the seabed. The bitmap is scaled by DUCK_SCALE.
+// Scene top to bottom: sky, the duck riding the surface, then open water.
 #define WATER_Y (DUCK_Y_OFFSET + 30)
 #define WATER_FADE 12  // rows the surface texture fades out over
 #define WATER_TOP  4   // dither threshold at the surface; 8 would be bare
 
-// A fixed bob cycle: starts on the first keystroke and keeps looping until
-// ANIM_HOLD_MS after the last one, always finishing the cycle it is in.
+// Bobs from the first keystroke until ANIM_HOLD_MS after the last one.
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
 #define ANIM_HOLD_MS 10000 // keep bobbing this long after the last keystroke
 
@@ -707,8 +677,7 @@ static uint8_t  duck_frame      = 0;
 static bool     duck_animating  = false;
 static uint8_t  duck_ripple     = 0;  // wave phase, flipped each bob frame
 
-// Clouds drift while you type and simply hold position when you stop - unlike
-// the gulls they read fine as static scenery.
+// Clouds hold position when you stop; unlike gulls they read fine static.
 #define CLOUD_W 7
 #define CLOUD_DRIFT_FRAMES 6
 static const uint8_t cloud_shape[2][CLOUD_W] = {
@@ -723,8 +692,7 @@ static uint8_t cloud_phase[CLOUD_COUNT] = {0, 19, 9};
 static uint8_t cloud_shift = 0;
 static uint8_t cloud_tick  = 0;
 
-// Gulls only ever exist mid-flight: one spawns while the animation is running,
-// crosses the sky and is gone. Nothing hovers when you stop typing.
+// A gull only exists mid-flight, so nothing hovers when you stop typing.
 #define GULL_W 5
 #define GULL_H 2
 #define GULL_GAP_FRAMES 14
@@ -742,15 +710,13 @@ static uint8_t gull_flap  = 0;
 static uint8_t gull_gap   = 0;
 static uint8_t gull_speed = 1;
 
-// Fish cross the depths below the fade, one per lane. Each lane keeps its
-// own gap, so the tank ranges from empty to all three at once.
+// One fish per lane, each with its own gap, so the tank fills unevenly.
 #define FISH_W 6
 #define FISH_H 3
 #define FISH_LANES 3
 #define FISH_STEP_MS (BOB_FRAME_MS * 3)  // a third of gull pace
 #define FISH_GAP_FRAMES 40
-// Bubbles rise from the bottom and pop when they reach the fade. One slot
-// spawns at a time so they trickle rather than arrive in a row.
+// Bubbles rise from the bottom and pop at the fade, one slot at a time.
 #define BUBBLE_COUNT 5
 #define BUBBLE_NONE 255
 #define BUBBLE_STEP_MS (BOB_FRAME_MS * 2)
@@ -763,8 +729,7 @@ static uint8_t bubble_gap = 0;
 // Drifts the surface dither sideways so the water is never quite still.
 static uint8_t water_shift = 0;
 
-// Indexed by direction so a fish faces where it is going: tail trailing
-// behind, head leading. [0] swims right, [1] swims left.
+// Indexed by direction so a fish faces the way it swims.
 static const uint8_t fish_shape[2][FISH_H][FISH_W] = {
     {{1, 0, 1, 1, 1, 0},
      {1, 1, 1, 1, 1, 1},
@@ -779,8 +744,7 @@ static int16_t fish_x[FISH_LANES]   = {-99, -99, -99};  // -99 = lane empty
 static uint8_t fish_left[FISH_LANES] = {0, 0, 0};
 static uint8_t fish_gap[FISH_LANES]  = {0, 0, 0};
 
-// Tiny xorshift PRNG. Seeded from the timer on the first keypress, so the
-// sequence differs between power-ups rather than replaying the same sky.
+// Tiny xorshift, seeded off the timer so the sky differs between boots.
 static uint16_t rng_state = 0;
 static uint8_t rnd(uint8_t range) {
     rng_state ^= (uint16_t)(rng_state << 7);
@@ -838,9 +802,7 @@ static void render_sky(void) {
     }
 }
 
-// Surface crests, then sparser marks going down for open water, then seabed.
-// A lit band at the surface that dithers out with depth, with the wave
-// crests knocked out of it. Below the fade it is dark, where the fish are.
+// Dither that thins with depth, with the wave crests drawn lit on top.
 static void render_water(uint8_t ripple) {
     for (uint8_t y = WATER_Y; y < WATER_Y + WATER_FADE; y++) {
         uint8_t thr = WATER_TOP + (8 - WATER_TOP) * (y - WATER_Y) / (WATER_FADE - 1);
@@ -931,15 +893,13 @@ static void render_duck(void) {
             }
         }
 
-        // Only allowed to stop at the end of a cycle, so it never freezes
-        // mid-bob - so the real stop is up to one cycle past ANIM_HOLD_MS.
+        // Stops only at the end of a cycle, so it never freezes mid-bob.
         if (duck_frame == 0 && timer_elapsed32(duck_last_tap) > ANIM_HOLD_MS) {
             duck_animating = false;
         }
     }
 
-    // A gull already in the air keeps going on its own clock, so it always
-    // finishes crossing instead of hanging in the sky when you stop typing.
+    // Its own clock, so a crossing finishes after you stop typing.
     static uint32_t gull_time = 0;
     if (gull_x != -99 && timer_elapsed32(gull_time) >= BOB_FRAME_MS) {
         gull_time = timer_read32();
@@ -986,8 +946,7 @@ static void render_duck(void) {
 
     uint8_t bob = duck_animating ? bob_cycle[duck_frame] : 0;
 
-    // Only redraw when something moved - the scene is over a thousand pixel
-    // writes plus a clear, which would saturate the I2C bus every scan.
+    // Redraw only when something moved; a frame is a thousand-odd writes.
     static uint8_t last_bob = 255;
     if (bob != last_bob) {
         changed  = true;
@@ -1022,8 +981,7 @@ static void render_duck(void) {
     render_water(duck_ripple);
 }
 
-// Both directions are done here rather than with the panel's own fade command,
-// so the timing is exact and identical on the two halves.
+// Done here rather than the panel's fade command, so both halves match.
 static void screen_power_task(void) {
     static bool     lit        = true;
     static bool     fading_out = false;
@@ -1052,8 +1010,7 @@ static void screen_power_task(void) {
         lit     = true;
         wake_at = timer_read32();
     } else if (fading_out) {
-        // Woken mid-fade: start the ramp from the level the fade reached, so
-        // the brightness carries on smoothly instead of snapping back.
+        // Woken mid-fade: ramp on from the level it reached rather than snapping.
         wake_at = timer_read32() - ((uint32_t)oled_get_brightness() * SCREEN_FADE_MS / OLED_BRIGHTNESS);
     }
     fading_out = false;

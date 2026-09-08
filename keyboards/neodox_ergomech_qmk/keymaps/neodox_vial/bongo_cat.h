@@ -20,6 +20,5 @@
 // 128x32 OLED screens.
 void render_bongo_cat(void);
 
-// LOCAL MODIFICATION: call once per keypress to tap a paw, alternating sides,
-// instead of the upstream WPM-threshold animation which lags.
+// Call once per keypress to tap a paw, alternating sides.
 void bongo_tap(void);

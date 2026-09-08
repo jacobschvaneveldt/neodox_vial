@@ -25,7 +25,6 @@
 #include QMK_KEYBOARD_H
 
 #define TAP_FRAMES 2 // total number of tapping animation frames
-// (upstream's WPM thresholds and frame duration removed - see bongo_tap below)
 
 #define ANIM_SIZE 512 // number of pixels in 128x32 display
 
@@ -62,8 +61,7 @@ static const char PROGMEM waiting_frame[] = {
         0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,128,128,128,128,128, 64, 64, 64, 64, 32, 32, 32, 32, 16, 16, 16, 16, 16,  8,  8,  8,  8,  8,  4,  4,  4,  4,  4,  2,  3,  2,  2,  1,  1,  1,  1,  1,  1,  2,  2,  4,  4,  8,  8,  8,  8,  8,  7,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
     };
 
-// LOCAL MODIFICATION: upstream polls get_current_wpm(), a rolling average that
-// ramps and decays late. This drives frames off keypresses: one paw per tap.
+// Frames are driven off keypresses, one paw per tap.
 
 #define TAP_HOLD_MS 80    // how long a paw stays down after a tap
 #define IDLE_MS 1000      // after this long with no taps, drop to resting
