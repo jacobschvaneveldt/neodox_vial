@@ -749,7 +749,19 @@ static uint8_t gull_speed = 1;
 #define FISH_LANES 3
 #define FISH_STEP_MS (BOB_FRAME_MS * 3)  // a third of gull pace
 #define FISH_GAP_FRAMES 40
-#define SPECK_SPACING 31  // roughly one lit pixel in 31 down there
+// Bubbles rise from the bottom and pop when they reach the fade. One slot
+// spawns at a time so they trickle rather than arrive in a row.
+#define BUBBLE_COUNT 5
+#define BUBBLE_NONE 255
+#define BUBBLE_STEP_MS (BOB_FRAME_MS * 2)
+#define BUBBLE_GAP_FRAMES 12
+
+static uint8_t bubble_x[BUBBLE_COUNT] = {0};
+static uint8_t bubble_y[BUBBLE_COUNT] = {BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE};
+static uint8_t bubble_gap = 0;
+
+// Drifts the surface dither sideways so the water is never quite still.
+static uint8_t water_shift = 0;
 
 // Indexed by direction so a fish faces where it is going: tail trailing
 // behind, head leading. [0] swims right, [1] swims left.
@@ -835,7 +847,7 @@ static void render_water(uint8_t ripple) {
             bool lit = true;
             if (y >= WATER_Y + WATER_SOLID) {
                 uint8_t d = y - (WATER_Y + WATER_SOLID) + 1;
-                lit = ((x * 7 + y * 3) % 8) >= (d * 8) / (WATER_FADE + 1);
+                lit = ((x * 7 + y * 3 + water_shift) % 8) >= (d * 8) / (WATER_FADE + 1);
             }
             oled_write_pixel(x, y, lit);
         }
@@ -850,12 +862,12 @@ static void render_water(uint8_t ripple) {
         }
     }
 
-    // A sparse scatter below the fade, so the depths read as water rather
-    // than as the same black as the sky. Fish simply draw over them.
-    for (uint8_t y = WATER_Y + WATER_SOLID + WATER_FADE; y < SCREEN_H; y++) {
-        for (uint8_t x = 0; x < SCREEN_W; x++) {
-            if ((x * 13 + y * 7) % SPECK_SPACING == 0) {
-                oled_write_pixel(x, y, true);
+    // Bubbles on the way up, with a gentle sideways wobble.
+    for (uint8_t i = 0; i < BUBBLE_COUNT; i++) {
+        if (bubble_y[i] != BUBBLE_NONE) {
+            uint8_t bx = bubble_x[i] + ((bubble_y[i] / 5) & 1);
+            if (bx < SCREEN_W) {
+                oled_write_pixel(bx, bubble_y[i], true);
             }
         }
     }
@@ -894,6 +906,21 @@ static void render_duck(void) {
             }
         }
 
+        water_shift++;
+
+        if (bubble_gap > 0) {
+            bubble_gap--;
+        } else {
+            for (uint8_t i = 0; i < BUBBLE_COUNT; i++) {
+                if (bubble_y[i] == BUBBLE_NONE) {
+                    bubble_x[i] = rnd(SCREEN_W);
+                    bubble_y[i] = SCREEN_H - 1;
+                    bubble_gap  = (uint8_t)(BUBBLE_GAP_FRAMES + rnd(16));
+                    break;
+                }
+            }
+        }
+
         // Each lane spawns on its own, so they do not arrive in formation.
         for (uint8_t i = 0; i < FISH_LANES; i++) {
             if (fish_x[i] != -99) {
@@ -925,6 +952,23 @@ static void render_duck(void) {
         changed = true;
         if (gull_x >= SCREEN_W) {
             gull_x = -99;  // gap for the next one was rolled at spawn
+        }
+    }
+
+    // Bubbles keep rising on their own clock too, and pop at the fade.
+    static uint32_t bubble_time = 0;
+    if (timer_elapsed32(bubble_time) >= BUBBLE_STEP_MS) {
+        bubble_time = timer_read32();
+        for (uint8_t i = 0; i < BUBBLE_COUNT; i++) {
+            if (bubble_y[i] == BUBBLE_NONE) {
+                continue;
+            }
+            changed = true;
+            if (bubble_y[i] <= WATER_Y + WATER_SOLID + WATER_FADE) {
+                bubble_y[i] = BUBBLE_NONE;
+            } else {
+                bubble_y[i]--;
+            }
         }
     }
 
