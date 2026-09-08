@@ -147,7 +147,7 @@ static const vial_combo_entry_t default_combos[] = {
     // Gallium, position-translated the same way as the original QWERTY set
     // (same physical row-3 positions: X/C -> Q/M, V -> W, M -> P, COMM/DOT -> QUOT/SCLN).
     { .input = { KC_Q, KC_M, KC_QUOT, KC_SCLN }, .output = DEL_LINE },
-    { .input = { KC_W, KC_M, 0, 0 },             .output = KC_ESCAPE },
+    { .input = { KC_C, KC_M, 0, 0 },             .output = KC_ESCAPE },
     { .input = { KC_QUOT, KC_SCLN, 0, 0 },       .output = KC_BSPC },
     { .input = { KC_QUOT, KC_P, 0, 0 },          .output = KC_ENTER },
     { .input = { KC_Q, KC_M, 0, 0 },             .output = C(KC_BSPC) },
