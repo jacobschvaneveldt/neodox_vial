@@ -690,8 +690,8 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
 // Scene, top to bottom: sky with clouds and gulls, the duck on the surface,
 // open water, then the seabed. The bitmap is scaled by DUCK_SCALE.
 #define WATER_Y (DUCK_Y_OFFSET + 30)
-#define WATER_SOLID 6   // rows of solid surface before the fade starts
-#define WATER_FADE  6   // rows the surface dithers out over
+#define WATER_FADE 12  // rows the surface texture fades out over
+#define WATER_TOP  4   // dither threshold at the surface; 8 would be bare
 
 // A fixed bob cycle: starts on the first keystroke and keeps looping until
 // ANIM_HOLD_MS after the last one, always finishing the cycle it is in.
@@ -842,23 +842,19 @@ static void render_sky(void) {
 // A lit band at the surface that dithers out with depth, with the wave
 // crests knocked out of it. Below the fade it is dark, where the fish are.
 static void render_water(uint8_t ripple) {
-    for (uint8_t y = WATER_Y; y < WATER_Y + WATER_SOLID + WATER_FADE; y++) {
+    for (uint8_t y = WATER_Y; y < WATER_Y + WATER_FADE; y++) {
+        uint8_t thr = WATER_TOP + (8 - WATER_TOP) * (y - WATER_Y) / (WATER_FADE - 1);
         for (uint8_t x = 0; x < SCREEN_W; x++) {
-            bool lit = true;
-            if (y >= WATER_Y + WATER_SOLID) {
-                uint8_t d = y - (WATER_Y + WATER_SOLID) + 1;
-                lit = ((x * 7 + y * 3 + water_shift) % 8) >= (d * 8) / (WATER_FADE + 1);
-            }
-            oled_write_pixel(x, y, lit);
+            oled_write_pixel(x, y, ((x * 7 + y * 3 + water_shift) % 8) >= thr);
         }
     }
 
     for (uint8_t x = 0; x < SCREEN_W; x++) {
         uint8_t t    = (x + ripple * 2) % 8;
         uint8_t rise = (t < 4) ? t : (8 - t);  // 0..4..0
-        oled_write_pixel(x, WATER_Y + (rise / 2), false);
+        oled_write_pixel(x, WATER_Y + (rise / 2), true);
         if (x % 4 != 3) {  // dashed second line, reads as depth
-            oled_write_pixel(x, WATER_Y + 5 + ((rise + 2) / 3), false);
+            oled_write_pixel(x, WATER_Y + 5 + ((rise + 2) / 3), true);
         }
     }
 
@@ -964,7 +960,7 @@ static void render_duck(void) {
                 continue;
             }
             changed = true;
-            if (bubble_y[i] <= WATER_Y + WATER_SOLID + WATER_FADE) {
+            if (bubble_y[i] <= WATER_Y + WATER_FADE) {
                 bubble_y[i] = BUBBLE_NONE;
             } else {
                 bubble_y[i]--;
