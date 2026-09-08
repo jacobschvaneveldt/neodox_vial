@@ -4,17 +4,14 @@
 #include "oneshot.h"
 #include "bongo_cat.h"
 
-// Animation for the half that isn't showing the readout; ANIM_TOG switches it.
 enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 #define ANIM_DEFAULT ANIM_DUCK
 
-// The master owns the mode and pushes it to the slave, which draws.
 static uint8_t anim_mode = ANIM_DEFAULT;
 
 // Uncomment to draw the animation on the master screen while tuning it.
 // #define ANIM_ON_MASTER
 
-// Which half draws the animation; the other draws the layer/mod readout.
 static inline bool half_draws_anim(void) {
 #ifdef ANIM_ON_MASTER
     return is_keyboard_master();
@@ -39,7 +36,6 @@ enum layers {
     _ADJUST
 };
 
-// Custom keycodes: four sticky (one-shot) mods plus a real delete-line.
 enum keycodes {
     OS_SHFT = SAFE_RANGE,
     OS_CTRL,
@@ -49,11 +45,9 @@ enum keycodes {
     ANIM_TOG
 };
 
-// Momentary layer holds; LOWER+RAISE together trigger ADJUST (tri-layer).
 #define LOWER MO(_LOWER)
 #define RAISE MO(_RAISE)
 
-// The layouts themselves, 70 keys each, ordered to match the enum above.
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [_QWERTY] = LAYOUT(
@@ -113,7 +107,6 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     )
 };
 #if defined(ENCODER_MAP_ENABLE)
-// Encoders, same on every layer: left scrolls horizontally, right is volume.
 const uint16_t PROGMEM encoder_map[][2][2] = {
     [_QWERTY]  = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
     [_NIGHT]   = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
@@ -185,12 +178,10 @@ void eeconfig_init_user(void) {
     }
 }
 
-// Holding LOWER and RAISE together activates ADJUST.
 layer_state_t layer_state_set_user(layer_state_t state) {
     return update_tri_layer_state(state, _LOWER, _RAISE, _ADJUST);
 }
 
-// Keys that clear any queued sticky mods.
 bool is_oneshot_cancel_key(uint16_t keycode) {
     switch (keycode) {
         case LOWER:
@@ -220,7 +211,6 @@ bool is_oneshot_ignored_key(uint16_t keycode) {
 // Only the master sees keypresses, so it counts taps for the slave.
 static uint8_t tap_count = 0;
 
-// What the master pushes to the slave each time either field changes.
 typedef struct {
     uint8_t taps;
     uint8_t anim;
@@ -230,7 +220,6 @@ typedef struct {
 // Game is easy to leave on by accident, so both panels invert while it is.
 static bool game_active = false;
 
-// Feed a tap to whichever animation is currently showing.
 static void right_screen_tap(void) {
 #ifdef OLED_ENABLE
     if (anim_mode == ANIM_BONGO) {
@@ -241,7 +230,6 @@ static void right_screen_tap(void) {
 #endif
 }
 
-// Both halves time their screens off this, stamped on every keypress.
 static uint32_t last_activity = 0;
 
 static void note_activity(void) {
@@ -292,13 +280,11 @@ void housekeeping_task_user(void) {
     }
 }
 
-// Live state of each sticky mod (also drives the left OLED indicators).
 oneshot_state os_shft_state = os_up_unqueued;
 oneshot_state os_ctrl_state = os_up_unqueued;
 oneshot_state os_alt_state  = os_up_unqueued;
 oneshot_state os_supr_state = os_up_unqueued;
 
-// DEL_LINE aside, this feeds the four sticky-mod state machines.
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     if (record->event.pressed) {
         tap_count++;
@@ -387,8 +373,7 @@ static void draw_fill(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, bool on) {
     }
 }
 
-// Knocking the corners back out is what makes a box read as rounded.
-static void draw_corners(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
+static void round_corners(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
     oled_write_pixel(x0, y0, false);
     oled_write_pixel(x1, y0, false);
     oled_write_pixel(x0, y1, false);
@@ -400,10 +385,9 @@ static void draw_round_rect(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1) {
     draw_hline(x0, x1, y1, true);
     draw_vline(x0, y0, y1, true);
     draw_vline(x1, y0, y1, true);
-    draw_corners(x0, y0, x1, y1);
+    round_corners(x0, y0, x1, y1);
 }
 
-// Dotted rule: separates the layer block from the mods, and closes the bottom.
 static void draw_dotted(uint8_t y) {
     for (uint8_t x = 0; x < SCREEN_W; x += 2) {
         oled_write_pixel(x, y, true);
@@ -539,7 +523,6 @@ static void draw_text_centered(uint8_t y, const char *s, bool ink) {
     draw_text((SCREEN_W - text_width(s)) / 2, y, s, ink);
 }
 
-// The layer name uses the same pill as the mods, just a taller one.
 #define UI_CAPTION_Y 11
 #define UI_CARD_TOP  23
 #define UI_CARD_BOT  44
@@ -576,7 +559,7 @@ static void render_mod_pill(uint8_t idx, const char *label, bool active) {
     uint8_t bot = top + UI_PILL_H - 1;
     if (active) {
         draw_fill(0, top, SCREEN_W - 1, bot, true);
-        draw_corners(0, top, SCREEN_W - 1, bot);
+        round_corners(0, top, SCREEN_W - 1, bot);
     } else {
         draw_round_rect(0, top, SCREEN_W - 1, bot);
     }
@@ -659,12 +642,10 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
 };
 
-// Scene top to bottom: sky, the duck riding the surface, then open water.
 #define WATER_Y (DUCK_Y_OFFSET + 30)
 #define WATER_FADE 12  // rows the surface texture fades out over
 #define WATER_TOP  4   // dither threshold at the surface; 8 would be bare
 
-// Bobs from the first keystroke until ANIM_HOLD_MS after the last one.
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
 #define ANIM_HOLD_MS 10000 // keep bobbing this long after the last keystroke
 
@@ -692,7 +673,6 @@ static uint8_t cloud_phase[CLOUD_COUNT] = {0, 19, 9};
 static uint8_t cloud_shift = 0;
 static uint8_t cloud_tick  = 0;
 
-// A gull only exists mid-flight, so nothing hovers when you stop typing.
 #define GULL_W 5
 #define GULL_H 2
 #define GULL_GAP_FRAMES 14
@@ -700,7 +680,6 @@ static const uint8_t gull_frames[2][GULL_H][GULL_W] = {
     {{1, 1, 0, 1, 1}, {0, 0, 1, 0, 0}},  // wings up
     {{0, 0, 1, 0, 0}, {1, 1, 0, 1, 1}},  // wings down
 };
-// Bounds for a gull's flight height; the exact value is picked per crossing.
 #define GULL_Y_MIN 4
 #define GULL_Y_MAX 56
 
@@ -716,7 +695,6 @@ static uint8_t gull_speed = 1;
 #define FISH_LANES 3
 #define FISH_STEP_MS (BOB_FRAME_MS * 3)  // a third of gull pace
 #define FISH_GAP_FRAMES 40
-// Bubbles rise from the bottom and pop at the fade, one slot at a time.
 #define BUBBLE_COUNT 5
 #define BUBBLE_NONE 255
 #define BUBBLE_STEP_MS (BOB_FRAME_MS * 2)
@@ -726,7 +704,6 @@ static uint8_t bubble_x[BUBBLE_COUNT] = {0};
 static uint8_t bubble_y[BUBBLE_COUNT] = {BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE};
 static uint8_t bubble_gap = 0;
 
-// Drifts the surface dither sideways so the water is never quite still.
 static uint8_t water_shift = 0;
 
 // Indexed by direction so a fish faces the way it swims.
@@ -774,7 +751,6 @@ void duck_tap(void) {
     }
 }
 
-// Blit a sprite, clipping anything that falls outside the panel.
 static void draw_sprite(const uint8_t *sprite, uint8_t w, uint8_t h, int16_t x, int16_t y, bool on) {
     for (uint8_t r = 0; r < h; r++) {
         for (uint8_t c = 0; c < w; c++) {
@@ -791,7 +767,6 @@ static void draw_sprite(const uint8_t *sprite, uint8_t w, uint8_t h, int16_t x, 
 }
 
 static void render_sky(void) {
-    // Clouds at staggered heights, wrapping around as they drift.
     for (uint8_t i = 0; i < CLOUD_COUNT; i++) {
         int16_t x = (int16_t)((cloud_shift + cloud_phase[i]) % (SCREEN_W + CLOUD_W)) - CLOUD_W;
         draw_sprite(&cloud_shape[0][0], CLOUD_W, 2, x, cloud_rows[i], true);
@@ -820,7 +795,6 @@ static void render_water(uint8_t ripple) {
         }
     }
 
-    // Bubbles on the way up, with a gentle sideways wobble.
     for (uint8_t i = 0; i < BUBBLE_COUNT; i++) {
         if (bubble_y[i] != BUBBLE_NONE) {
             uint8_t bx = bubble_x[i] + ((bubble_y[i] / 5) & 1);
@@ -840,7 +814,6 @@ static void render_water(uint8_t ripple) {
 static void render_duck(void) {
     bool changed = false;
 
-    // The duck's cycle only advances while animating.
     if (duck_animating && timer_elapsed32(duck_frame_time) >= BOB_FRAME_MS) {
         duck_frame_time = timer_read32();
         duck_frame      = (duck_frame + 1) % BOB_FRAMES;
@@ -852,7 +825,6 @@ static void render_duck(void) {
             cloud_shift++;
         }
 
-        // Spawn a gull only while typing, and only when none is crossing.
         if (gull_x == -99) {
             if (gull_gap > 0) {
                 gull_gap--;
@@ -911,7 +883,6 @@ static void render_duck(void) {
         }
     }
 
-    // Bubbles keep rising on their own clock too, and pop at the fade.
     static uint32_t bubble_time = 0;
     if (timer_elapsed32(bubble_time) >= BUBBLE_STEP_MS) {
         bubble_time = timer_read32();
@@ -928,7 +899,6 @@ static void render_duck(void) {
         }
     }
 
-    // Same deal for the fish: their own clock, so they finish crossing.
     static uint32_t fish_time = 0;
     if (timer_elapsed32(fish_time) >= FISH_STEP_MS) {
         fish_time = timer_read32();
