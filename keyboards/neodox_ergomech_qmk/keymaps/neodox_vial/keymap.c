@@ -14,7 +14,7 @@ enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 static uint8_t anim_mode = ANIM_DEFAULT;
 
 // Uncomment to draw the animation on the master screen while tuning it.
-// #define ANIM_ON_MASTER
+#define ANIM_ON_MASTER
 
 // Which half draws the animation; the other draws the layer/mod readout.
 static inline bool half_draws_anim(void) {
@@ -690,7 +690,8 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
 // Scene, top to bottom: sky with clouds and gulls, the duck on the surface,
 // open water, then the seabed. The bitmap is scaled by DUCK_SCALE.
 #define WATER_Y (DUCK_Y_OFFSET + 30)
-#define SEABED_Y 119
+#define WATER_SOLID 6   // rows of solid surface before the fade starts
+#define WATER_FADE  6   // rows the surface dithers out over
 
 // A fixed bob cycle: starts on the first keystroke and keeps looping until
 // ANIM_HOLD_MS after the last one, always finishing the cycle it is in.
@@ -740,6 +741,25 @@ static uint8_t gull_y     = 6;
 static uint8_t gull_flap  = 0;
 static uint8_t gull_gap   = 0;
 static uint8_t gull_speed = 1;
+
+// Fish cross the depths below the fade, one per lane. Each lane keeps its
+// own gap, so the tank ranges from empty to all three at once.
+#define FISH_W 6
+#define FISH_H 3
+#define FISH_LANES 3
+#define FISH_STEP_MS (BOB_FRAME_MS * 3)  // a third of gull pace
+#define FISH_GAP_FRAMES 40
+
+static const uint8_t fish_shape[FISH_H][FISH_W] = {
+    {0, 1, 1, 1, 0, 1},
+    {1, 1, 1, 1, 1, 1},
+    {0, 1, 1, 1, 0, 1},
+};
+static const uint8_t fish_rows[FISH_LANES] = {WATER_Y + 14, WATER_Y + 21, WATER_Y + 28};
+
+static int16_t fish_x[FISH_LANES]   = {-99, -99, -99};  // -99 = lane empty
+static uint8_t fish_left[FISH_LANES] = {0, 0, 0};
+static uint8_t fish_gap[FISH_LANES]  = {0, 0, 0};
 
 // Tiny xorshift PRNG. Seeded from the timer on the first keypress, so the
 // sequence differs between power-ups rather than replaying the same sky.
@@ -801,31 +821,33 @@ static void render_sky(void) {
 }
 
 // Surface crests, then sparser marks going down for open water, then seabed.
-static void render_ocean(uint8_t ripple, bool on) {
+// A lit band at the surface that dithers out with depth, with the wave
+// crests knocked out of it. Below the fade it is dark, where the fish are.
+static void render_water(uint8_t ripple) {
+    for (uint8_t y = WATER_Y; y < WATER_Y + WATER_SOLID + WATER_FADE; y++) {
+        for (uint8_t x = 0; x < SCREEN_W; x++) {
+            bool lit = true;
+            if (y >= WATER_Y + WATER_SOLID) {
+                uint8_t d = y - (WATER_Y + WATER_SOLID) + 1;
+                lit = ((x * 7 + y * 3) % 8) >= (d * 8) / (WATER_FADE + 1);
+            }
+            oled_write_pixel(x, y, lit);
+        }
+    }
+
     for (uint8_t x = 0; x < SCREEN_W; x++) {
         uint8_t t    = (x + ripple * 2) % 8;
         uint8_t rise = (t < 4) ? t : (8 - t);  // 0..4..0
-        oled_write_pixel(x, WATER_Y + (rise / 2), on);
+        oled_write_pixel(x, WATER_Y + (rise / 2), false);
         if (x % 4 != 3) {  // dashed second line, reads as depth
-            oled_write_pixel(x, WATER_Y + 5 + ((rise + 2) / 3), on);
+            oled_write_pixel(x, WATER_Y + 5 + ((rise + 2) / 3), false);
         }
     }
 
-    for (uint8_t y = WATER_Y + 12; y < SEABED_Y - 2; y += 8) {
-        for (uint8_t x = (uint8_t)((y + ripple * 2) % 5); x < SCREEN_W; x += 6) {
-            oled_write_pixel(x, y, on);
-            oled_write_pixel(x + 1, y, on);
+    for (uint8_t i = 0; i < FISH_LANES; i++) {
+        if (fish_x[i] != -99) {
+            draw_sprite(&fish_shape[0][0], FISH_W, FISH_H, fish_x[i], fish_rows[i], true);
         }
-    }
-
-    for (uint8_t x = 0; x < SCREEN_W; x++) {
-        oled_write_pixel(x, SEABED_Y, on);
-    }
-    for (uint8_t x = 0; x < SCREEN_W; x += 2) {
-        oled_write_pixel(x, SEABED_Y + 3, on);
-    }
-    for (uint8_t x = 1; x < SCREEN_W; x += 3) {
-        oled_write_pixel(x, SEABED_Y + 6, on);
     }
 }
 
@@ -856,6 +878,20 @@ static void render_duck(void) {
             }
         }
 
+        // Each lane spawns on its own, so they do not arrive in formation.
+        for (uint8_t i = 0; i < FISH_LANES; i++) {
+            if (fish_x[i] != -99) {
+                continue;
+            }
+            if (fish_gap[i] > 0) {
+                fish_gap[i]--;
+            } else {
+                fish_left[i] = rnd(2);
+                fish_x[i]    = fish_left[i] ? SCREEN_W : -FISH_W;
+                fish_gap[i]  = (uint8_t)(FISH_GAP_FRAMES + rnd(40));
+            }
+        }
+
         // Only allowed to stop at the end of a cycle, so it never freezes
         // mid-bob - so the real stop is up to one cycle past ANIM_HOLD_MS.
         if (duck_frame == 0 && timer_elapsed32(duck_last_tap) > ANIM_HOLD_MS) {
@@ -873,6 +909,22 @@ static void render_duck(void) {
         changed = true;
         if (gull_x >= SCREEN_W) {
             gull_x = -99;  // gap for the next one was rolled at spawn
+        }
+    }
+
+    // Same deal for the fish: their own clock, so they finish crossing.
+    static uint32_t fish_time = 0;
+    if (timer_elapsed32(fish_time) >= FISH_STEP_MS) {
+        fish_time = timer_read32();
+        for (uint8_t i = 0; i < FISH_LANES; i++) {
+            if (fish_x[i] == -99) {
+                continue;
+            }
+            fish_x[i] += fish_left[i] ? -1 : 1;
+            changed = true;
+            if (fish_x[i] >= SCREEN_W || fish_x[i] < -FISH_W) {
+                fish_x[i] = -99;  // gap for the next one was rolled at spawn
+            }
         }
     }
 
@@ -911,10 +963,7 @@ static void render_duck(void) {
         }
     }
 
-    // Only the water is inverted: light the band below the surface and knock
-    // the waves and seabed out of it, so a panel flip lands on the reverse.
-    draw_fill(0, WATER_Y, SCREEN_W - 1, SCREEN_H - 1, true);
-    render_ocean(duck_ripple, false);
+    render_water(duck_ripple);
 }
 
 // Both directions are done here rather than with the panel's own fade command,
