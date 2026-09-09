@@ -53,7 +53,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         KC_TAB,  KC_1,    KC_2,   KC_3,   KC_4,   KC_5,                                             KC_6,  KC_7,    KC_8,    KC_9,   KC_0,    KC_BSPC,
         KC_ESC,  KC_Q,    KC_W,   KC_E,   KC_R,   KC_T,  TG(_GAME),                        KC_MPLY, KC_Y,  KC_U,    KC_I,    KC_O,   KC_P,    KC_DEL,
         KC_LCTL, KC_A,    KC_S,   KC_D,   KC_F,   KC_G,  KC_NO,                            KC_NO,   KC_H,  KC_J,    KC_K,    KC_L,   KC_SCLN, KC_QUOT,
-        KC_LSFT, KC_Z,    KC_X,   KC_C,   KC_V,   KC_B,  KC_DEL,    KC_ESC,       KC_LALT, KC_LGUI, KC_N,  KC_M,    KC_COMM, KC_DOT, KC_SLSH, KC_ENT,
+        KC_LSFT, KC_Z,    KC_X,   KC_V,   KC_C,   KC_B,  KC_DEL,    KC_ESC,       KC_LALT, KC_LGUI, KC_M,  KC_N,    KC_COMM, KC_DOT, KC_SLSH, KC_ENT,
                  KC_LALT, KC_TAB, KC_ENT, KC_SPC, LOWER, KC_LSFT,   KC_BSPC,      KC_LCTL, KC_SPC,  RAISE, KC_LEFT, KC_DOWN, KC_UP,  KC_RGHT
     ),
 
@@ -85,7 +85,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
         ANIM_TOG, _______, _______, _______, _______,    _______,                                            _______, _______, _______, _______, _______, _______,
         _______,  KC_1,    KC_2,    KC_3,    KC_4,       KC_5,    TG(_GAME),                        KC_MPLY, KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    _______,
         KC_VOLU,  OS_SUPR, OS_ALT,  OS_CTRL, OS_SHFT,    KC_PERC, _______,                          _______, KC_ESC,  KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, _______,
-        KC_VOLD,  KC_MPRV, KC_MNXT, C(KC_C), C(KC_V),    KC_MPLY, _______,   _______,      _______, _______, KC_DEL,  KC_BSPC, KC_TAB,  KC_ENT,  KC_SCLN, _______,
+        KC_VOLD,  KC_MPRV, KC_MNXT, C(KC_C), C(KC_V),    KC_MPLY, _______,   _______,      _______, _______, KC_DEL,  KC_BSPC, KC_ENT,  KC_TAB,  KC_SCLN, _______,
                   _______, _______, _______, G(S(KC_S)), _______, _______,   _______,      _______, _______, _______, _______, _______, _______, _______
     ),
 
@@ -119,11 +119,11 @@ const uint16_t PROGMEM encoder_map[][2][2] = {
 
 // Seeded only into a blank EEPROM; after that Vial owns them.
 static const vial_combo_entry_t default_combos[] = {
-    { .input = { KC_X, KC_C, KC_COMM, KC_DOT }, .output = DEL_LINE },
+    { .input = { KC_X, KC_V, KC_COMM, KC_DOT }, .output = DEL_LINE },
     { .input = { KC_V, KC_C, 0, 0 },            .output = KC_ESCAPE },
     { .input = { KC_COMM, KC_DOT, 0, 0 },       .output = KC_BSPC },
-    { .input = { KC_COMM, KC_M, 0, 0 },         .output = KC_ENTER },
-    { .input = { KC_X, KC_C, 0, 0 },            .output = C(KC_BSPC) },
+    { .input = { KC_COMM, KC_N, 0, 0 },         .output = KC_ENTER },
+    { .input = { KC_X, KC_V, 0, 0 },            .output = C(KC_BSPC) },
 
     { .input = { KC_V, KC_J, KC_SCLN, KC_SLSH }, .output = DEL_LINE },
     { .input = { KC_D, KC_J, 0, 0 },             .output = KC_ESCAPE },
@@ -1018,10 +1018,12 @@ static void screen_power_task(void) {
     uint32_t idle = timer_elapsed32(last_activity);
 
     if (idle >= SCREEN_ON_MS + SCREEN_FADE_MS) {
-        if (lit) {
+        // Re-asserted every pass, not latched: the driver turns the panel back
+        // on by itself whenever a block is still dirty.
+        if (is_oled_on()) {
             oled_off();
-            lit = false;
         }
+        lit = false;
         return;
     }
 
