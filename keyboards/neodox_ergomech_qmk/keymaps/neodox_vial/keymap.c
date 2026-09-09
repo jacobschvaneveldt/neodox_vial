@@ -1009,8 +1009,12 @@ static void render_duck(void) {
     render_water(duck_ripple);
 }
 
+// Not in the driver header, but a plain global: the panel cannot be switched
+// off until the buffer has drained or the driver just turns it back on.
+extern OLED_BLOCK_TYPE oled_dirty;
+
 // Done here rather than the panel's fade command, so both halves match.
-static void screen_power_task(void) {
+static bool screen_power_task(void) {
     static bool     lit        = true;
     static bool     fading_out = false;
     static uint32_t wake_at    = 0;
@@ -1018,20 +1022,18 @@ static void screen_power_task(void) {
     uint32_t idle = timer_elapsed32(last_activity);
 
     if (idle >= SCREEN_ON_MS + SCREEN_FADE_MS) {
-        // Re-asserted every pass, not latched: the driver turns the panel back
-        // on by itself whenever a block is still dirty.
-        if (is_oled_on()) {
+        if (oled_dirty == 0 && is_oled_on()) {
             oled_off();
         }
         lit = false;
-        return;
+        return true;
     }
 
     if (idle >= SCREEN_ON_MS) {
         uint32_t step = idle - SCREEN_ON_MS;
         fading_out = true;
         oled_set_brightness((uint8_t)(OLED_BRIGHTNESS - (uint32_t)OLED_BRIGHTNESS * step / SCREEN_FADE_MS));
-        return;
+        return false;
     }
 
     if (!lit) {
@@ -1049,11 +1051,17 @@ static void screen_power_task(void) {
     oled_set_brightness(since >= SCREEN_FADE_MS
                         ? OLED_BRIGHTNESS
                         : (uint8_t)((uint32_t)OLED_BRIGHTNESS * since / SCREEN_FADE_MS));
+    return false;
 }
 
 bool oled_task_user(void) {
-    screen_power_task();
+    bool asleep = screen_power_task();
     oled_invert(game_active);  // no-op unless the state actually changed
+
+    if (asleep) {
+        return false;  // let the buffer drain; the movers resume on wake
+    }
+
 
     if (!half_draws_anim()) {
         render_layer_status();
