@@ -10,7 +10,7 @@ enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 static uint8_t anim_mode = ANIM_DEFAULT;
 
 // Uncomment to draw the animation on the master screen while tuning it.
-// #define ANIM_ON_MASTER
+#define ANIM_ON_MASTER
 
 static inline bool half_draws_anim(void) {
 #ifdef ANIM_ON_MASTER
@@ -604,7 +604,7 @@ static void render_layer_status(void) {
 #define DUCK_COLS 28
 #define DUCK_ROWS 32
 #define DUCK_X_OFFSET 2
-#define DUCK_Y_OFFSET 62
+#define DUCK_Y_OFFSET 66
 static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -640,9 +640,13 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
 };
 
-#define WATER_Y (DUCK_Y_OFFSET + 30)
+#define WATER_Y 92
 #define WATER_FADE 12  // rows the surface texture fades out over
 #define WATER_TOP  4   // dither threshold at the surface; 8 would be bare
+// Must stay coprime with the 13 below or the x term drops out and the scatter
+// collapses into stripes; 9, 11, 17 and 19 are safe, 13 and 26 are not.
+#define DEEP_SPACING 17
+#define DEEP_DRIFT_FRAMES 4
 
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
 #define ANIM_HOLD_MS 10000 // keep bobbing this long after the last keystroke
@@ -703,6 +707,8 @@ static uint8_t bubble_y[BUBBLE_COUNT] = {BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE, 
 static uint8_t bubble_gap = 0;
 
 static uint8_t water_shift = 0;
+static uint8_t deep_shift  = 0;
+static uint8_t deep_tick   = 0;
 
 // Indexed by direction so a fish faces the way it swims.
 static const uint8_t fish_shape[2][FISH_H][FISH_W] = {
@@ -784,6 +790,14 @@ static void render_water(uint8_t ripple) {
         }
     }
 
+    for (uint8_t y = WATER_Y + WATER_FADE; y < SCREEN_H; y++) {
+        for (uint8_t x = 0; x < SCREEN_W; x++) {
+            if (((uint16_t)(x + deep_shift) * 13 + y * 7) % DEEP_SPACING == 0) {
+                oled_write_pixel(x, y, true);
+            }
+        }
+    }
+
     for (uint8_t x = 0; x < SCREEN_W; x++) {
         uint8_t t    = (x + ripple * 2) % 8;
         uint8_t rise = (t < 4) ? t : (8 - t);  // 0..4..0
@@ -835,6 +849,10 @@ static void render_duck(void) {
         }
 
         water_shift++;
+        if (++deep_tick >= DEEP_DRIFT_FRAMES) {
+            deep_tick = 0;
+            deep_shift++;
+        }
 
         if (bubble_gap > 0) {
             bubble_gap--;
