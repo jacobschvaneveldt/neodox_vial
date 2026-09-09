@@ -604,7 +604,7 @@ static void render_layer_status(void) {
 #define DUCK_COLS 28
 #define DUCK_ROWS 32
 #define DUCK_X_OFFSET 2
-#define DUCK_Y_OFFSET 66
+#define DUCK_Y_OFFSET 50
 static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
     {0,0,0,0,0,1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -640,13 +640,9 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
     {0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0},
 };
 
-#define WATER_Y 92
+#define WATER_Y 76
 #define WATER_FADE 12  // rows the surface texture fades out over
 #define WATER_TOP  4   // dither threshold at the surface; 8 would be bare
-// Must stay coprime with the 13 below or the x term drops out and the scatter
-// collapses into stripes; 9, 11, 17 and 19 are safe, 13 and 26 are not.
-#define DEEP_SPACING 17
-#define DEEP_DRIFT_FRAMES 4
 
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
 #define ANIM_HOLD_MS 10000 // keep bobbing this long after the last keystroke
@@ -683,7 +679,7 @@ static const uint8_t gull_frames[2][GULL_H][GULL_W] = {
     {{0, 0, 1, 0, 0}, {1, 1, 0, 1, 1}},  // wings down
 };
 #define GULL_Y_MIN 4
-#define GULL_Y_MAX 56
+#define GULL_Y_MAX (WATER_Y - 20)
 
 static int16_t gull_x     = -99;  // -99 = no gull in flight
 static uint8_t gull_y     = 6;
@@ -707,8 +703,6 @@ static uint8_t bubble_y[BUBBLE_COUNT] = {BUBBLE_NONE, BUBBLE_NONE, BUBBLE_NONE, 
 static uint8_t bubble_gap = 0;
 
 static uint8_t water_shift = 0;
-static uint8_t deep_shift  = 0;
-static uint8_t deep_tick   = 0;
 
 // Indexed by direction so a fish faces the way it swims.
 static const uint8_t fish_shape[2][FISH_H][FISH_W] = {
@@ -719,7 +713,49 @@ static const uint8_t fish_shape[2][FISH_H][FISH_W] = {
      {1, 1, 1, 1, 1, 1},
      {0, 1, 1, 1, 0, 1}},
 };
-static const uint8_t fish_rows[FISH_LANES] = {WATER_Y + 14, WATER_Y + 21, WATER_Y + 28};
+static const uint8_t fish_rows[FISH_LANES] = {WATER_Y + 30, WATER_Y + 38, WATER_Y + 46};
+
+// Anchored, bobbing slowly - the only thing down there that does not travel.
+#define JELLY_W 10
+#define JELLY_H 14
+#define JELLY_X ((SCREEN_W - JELLY_W) / 2)
+#define JELLY_TOP (WATER_Y + 13)
+#define JELLY_BOB_FRAMES 9
+
+static const uint8_t jelly_shape[JELLY_H][JELLY_W] = {
+    {0,0,1,1,1,1,1,1,0,0},
+    {0,1,1,1,1,1,1,1,1,0},
+    {1,1,1,1,1,1,1,1,1,1},
+    {1,1,1,1,1,1,1,1,1,1},
+    {0,1,1,1,1,1,1,1,1,0},
+    {0,0,1,1,0,0,1,1,0,0},
+    {0,0,1,1,0,0,1,1,0,0},
+    {0,1,0,1,0,0,1,0,1,0},
+    {0,1,0,1,0,0,1,0,1,0},
+    {1,0,0,1,0,0,1,0,0,1},
+    {1,0,0,1,0,0,1,0,0,1},
+    {1,0,0,0,1,1,0,0,0,1},
+    {0,1,0,0,1,1,0,0,1,0},
+    {0,0,0,0,0,0,0,0,0,0},
+};
+static const uint8_t jelly_bob[] = {0, 1, 2, 2, 1, 0};
+static uint8_t jelly_frame = 0;
+static uint8_t jelly_tick  = 0;
+
+// Rooted off the bottom edge so the scene needs no seabed line.
+#define WEED_COUNT 3
+#define WEED_SWAY_FRAMES 7
+
+static const uint8_t weed_x[WEED_COUNT]   = {1, 5, 29};
+static const uint8_t weed_top[WEED_COUNT] = {WATER_Y + 28, WATER_Y + 40, WATER_Y + 34};
+static const int8_t  weed_wave[8]         = {0, 0, 1, 1, 0, -1, -1, 0};
+static uint8_t weed_shift = 0;
+static uint8_t weed_tick  = 0;
+
+// Leftmost and rightmost lit column of each duck row, so the sky can be
+// cleared behind it and clouds pass behind rather than through the outline.
+static const uint8_t duck_lo[DUCK_ROWS] = {6,5,5,5,6,3,3,4,5,4,0,0,0,0,1,2,4,4,3,2,2,2,1,1,1,1,2,2,3,4,5,7};
+static const uint8_t duck_hi[DUCK_ROWS] = {8,11,12,13,14,15,17,19,19,18,17,17,17,24,25,26,26,27,27,27,27,27,26,26,26,25,25,24,23,22,20,17};
 
 static int16_t fish_x[FISH_LANES]   = {-99, -99, -99};  // -99 = lane empty
 static uint8_t fish_left[FISH_LANES] = {0, 0, 0};
@@ -736,7 +772,7 @@ static uint8_t rnd(uint8_t range) {
 
 static void scatter_clouds(void) {
     for (uint8_t i = 0; i < CLOUD_COUNT; i++) {
-        cloud_rows[i]  = (uint8_t)(4 + i * 18 + rnd(9));   // keeps them apart
+        cloud_rows[i]  = (uint8_t)(4 + i * ((WATER_Y - 12) / CLOUD_COUNT) + rnd(6));
         cloud_phase[i] = rnd(SCREEN_W + CLOUD_W);
     }
 }
@@ -790,14 +826,6 @@ static void render_water(uint8_t ripple) {
         }
     }
 
-    for (uint8_t y = WATER_Y + WATER_FADE; y < SCREEN_H; y++) {
-        for (uint8_t x = 0; x < SCREEN_W; x++) {
-            if (((uint16_t)(x + deep_shift) * 13 + y * 7) % DEEP_SPACING == 0) {
-                oled_write_pixel(x, y, true);
-            }
-        }
-    }
-
     for (uint8_t x = 0; x < SCREEN_W; x++) {
         uint8_t t    = (x + ripple * 2) % 8;
         uint8_t rise = (t < 4) ? t : (8 - t);  // 0..4..0
@@ -815,6 +843,16 @@ static void render_water(uint8_t ripple) {
             }
         }
     }
+
+    for (uint8_t i = 0; i < WEED_COUNT; i++) {
+        for (uint8_t y = weed_top[i]; y < SCREEN_H; y++) {
+            uint8_t phase = (uint8_t)((SCREEN_H - 1 - y) + weed_shift) % 8;
+            oled_write_pixel((uint8_t)(weed_x[i] + weed_wave[phase]), y, true);
+        }
+    }
+
+    draw_sprite(&jelly_shape[0][0], JELLY_W, JELLY_H, JELLY_X,
+                JELLY_TOP + jelly_bob[jelly_frame], true);
 
     for (uint8_t i = 0; i < FISH_LANES; i++) {
         if (fish_x[i] != -99) {
@@ -849,9 +887,13 @@ static void render_duck(void) {
         }
 
         water_shift++;
-        if (++deep_tick >= DEEP_DRIFT_FRAMES) {
-            deep_tick = 0;
-            deep_shift++;
+        if (++jelly_tick >= JELLY_BOB_FRAMES) {
+            jelly_tick  = 0;
+            jelly_frame = (jelly_frame + 1) % (sizeof(jelly_bob) / sizeof(jelly_bob[0]));
+        }
+        if (++weed_tick >= WEED_SWAY_FRAMES) {
+            weed_tick = 0;
+            weed_shift++;
         }
 
         if (bubble_gap > 0) {
@@ -944,6 +986,14 @@ static void render_duck(void) {
 
     oled_clear();
     render_sky();
+
+    for (uint8_t row = 0; row < DUCK_ROWS; row++) {
+        uint8_t y = DUCK_Y_OFFSET + row * DUCK_SCALE + bob;
+        if (y >= WATER_Y) {
+            break;
+        }
+        draw_hline(DUCK_X_OFFSET + duck_lo[row], DUCK_X_OFFSET + duck_hi[row], y, false);
+    }
 
     for (uint8_t row = 0; row < DUCK_ROWS; row++) {
         uint8_t y = DUCK_Y_OFFSET + row * DUCK_SCALE + bob;
