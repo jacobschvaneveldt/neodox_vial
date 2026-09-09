@@ -718,8 +718,8 @@ static const uint8_t fish_rows[FISH_LANES] = {WATER_Y + 30, WATER_Y + 38, WATER_
 // Anchored, bobbing slowly - the only thing down there that does not travel.
 #define JELLY_W 7
 #define JELLY_H 6
-#define JELLY_X 18  // off centre; dead centre reads as posed
-#define JELLY_TOP (WATER_Y + 14)
+#define JELLY_X 23  // off centre, and drawn over the right-hand weed
+#define JELLY_TOP (WATER_Y + 17)
 #define JELLY_BOB_FRAMES 9
 
 static const uint8_t jelly_shape[JELLY_H][JELLY_W] = {
