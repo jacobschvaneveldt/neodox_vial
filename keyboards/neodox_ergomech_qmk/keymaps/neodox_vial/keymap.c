@@ -716,27 +716,19 @@ static const uint8_t fish_shape[2][FISH_H][FISH_W] = {
 static const uint8_t fish_rows[FISH_LANES] = {WATER_Y + 30, WATER_Y + 38, WATER_Y + 46};
 
 // Anchored, bobbing slowly - the only thing down there that does not travel.
-#define JELLY_W 10
-#define JELLY_H 14
-#define JELLY_X ((SCREEN_W - JELLY_W) / 2)
-#define JELLY_TOP (WATER_Y + 13)
+#define JELLY_W 7
+#define JELLY_H 6
+#define JELLY_X 18  // off centre; dead centre reads as posed
+#define JELLY_TOP (WATER_Y + 14)
 #define JELLY_BOB_FRAMES 9
 
 static const uint8_t jelly_shape[JELLY_H][JELLY_W] = {
-    {0,0,1,1,1,1,1,1,0,0},
-    {0,1,1,1,1,1,1,1,1,0},
-    {1,1,1,1,1,1,1,1,1,1},
-    {1,1,1,1,1,1,1,1,1,1},
-    {0,1,1,1,1,1,1,1,1,0},
-    {0,0,1,1,0,0,1,1,0,0},
-    {0,0,1,1,0,0,1,1,0,0},
-    {0,1,0,1,0,0,1,0,1,0},
-    {0,1,0,1,0,0,1,0,1,0},
-    {1,0,0,1,0,0,1,0,0,1},
-    {1,0,0,1,0,0,1,0,0,1},
-    {1,0,0,0,1,1,0,0,0,1},
-    {0,1,0,0,1,1,0,0,1,0},
-    {0,0,0,0,0,0,0,0,0,0},
+    {0,0,1,1,1,0,0},
+    {0,1,1,1,1,1,0},
+    {1,1,1,1,1,1,1},
+    {0,1,1,1,1,1,0},
+    {0,1,0,1,0,1,0},
+    {1,0,0,1,0,0,1},
 };
 static const uint8_t jelly_bob[] = {0, 1, 2, 2, 1, 0};
 static uint8_t jelly_frame = 0;
