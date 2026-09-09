@@ -645,7 +645,7 @@ static const uint8_t duck_bitmap[DUCK_ROWS][DUCK_COLS] = {
 #define WATER_TOP  4   // dither threshold at the surface; 8 would be bare
 
 #define BOB_FRAME_MS 110   // how long each step of the cycle holds
-#define ANIM_HOLD_MS 10000 // keep bobbing this long after the last keystroke
+#define ANIM_HOLD_MS SCREEN_ON_MS  // bob for as long as the screen is lit
 
 static const uint8_t bob_cycle[] = {0, 1, 2, 2, 1, 0};
 #define BOB_FRAMES (sizeof(bob_cycle) / sizeof(bob_cycle[0]))
