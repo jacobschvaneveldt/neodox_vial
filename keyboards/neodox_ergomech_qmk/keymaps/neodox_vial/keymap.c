@@ -4,6 +4,15 @@
 #include "oneshot.h"
 #include "bongo_cat.h"
 
+#if __has_include("secrets.h")
+#    include "secrets.h"  // gitignored so the addresses stay out of the public repo
+#else
+#    define EMAIL_1_ADDR ""
+#    define EMAIL_2_ADDR ""
+#    define EMAIL_3_ADDR ""
+#    define EMAIL_4_ADDR ""
+#endif
+
 enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
 #define ANIM_DEFAULT ANIM_DUCK
 
@@ -41,7 +50,11 @@ enum keycodes {
     OS_ALT,
     OS_SUPR,
     DEL_LINE,
-    ANIM_TOG
+    ANIM_TOG,
+    EMAIL_1,
+    EMAIL_2,
+    EMAIL_3,
+    EMAIL_4
 };
 
 #define LOWER MO(_LOWER)
@@ -82,7 +95,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     ),
 
     [_LOWER] = LAYOUT(
-        ANIM_TOG, _______, _______, _______, _______,    _______,                                            _______, _______, _______, _______, _______, _______,
+        ANIM_TOG, EMAIL_1, EMAIL_2, EMAIL_3, EMAIL_4,    _______,                                            _______, _______, _______, _______, _______, _______,
         _______,  KC_1,    KC_2,    KC_3,    KC_4,       KC_5,    TG(_GAME),                        KC_MPLY, KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    _______,
         KC_VOLU,  OS_SUPR, OS_ALT,  OS_CTRL, OS_SHFT,    KC_PERC, _______,                          _______, KC_ESC,  KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT, _______,
         KC_VOLD,  KC_MPRV, KC_MNXT, C(KC_C), C(KC_V),    KC_MPLY, _______,   _______,      _______, _______, KC_DEL,  KC_BSPC, KC_ENT,  KC_TAB,  KC_SCLN, _______,
@@ -312,6 +325,14 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
             unregister_code(KC_LSFT);
             wait_ms(DEL_LINE_STEP_MS);
             tap_code(KC_BSPC);
+        }
+        return false;
+    }
+
+    if (keycode >= EMAIL_1 && keycode <= EMAIL_4) {
+        if (record->event.pressed) {
+            static const char *const addrs[] = { EMAIL_1_ADDR, EMAIL_2_ADDR, EMAIL_3_ADDR, EMAIL_4_ADDR };
+            send_string(addrs[keycode - EMAIL_1]);
         }
         return false;
     }
