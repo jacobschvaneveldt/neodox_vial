@@ -3,7 +3,7 @@
 #define VIAL_KEYBOARD_UID {0x54, 0xB9, 0x18, 0x3D, 0xE9, 0x29, 0xA8, 0x22}
 #define FORCE_NKRO
 
-#define DYNAMIC_KEYMAP_LAYER_COUNT 7
+#define DYNAMIC_KEYMAP_LAYER_COUNT 12
 
 // Bootmagic only checks rows the half actually scans, and the right half
 // owns 5-9, so it needs its own key: the top right corner.
