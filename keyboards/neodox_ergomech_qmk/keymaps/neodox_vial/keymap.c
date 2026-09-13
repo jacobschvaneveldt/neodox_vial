@@ -225,11 +225,7 @@ static uint8_t tap_count = 0;
 typedef struct {
     uint8_t taps;
     uint8_t anim;
-    uint8_t game;
 } right_screen_sync_t;
-
-// Inverts OLED colors
-static bool game_active = false;
 
 static void right_screen_tap(void) {
 #ifdef OLED_ENABLE
@@ -258,8 +254,6 @@ static void tap_sync_slave_handler(uint8_t in_len, const void *in_data, uint8_t 
     }
 #endif
 
-    game_active = in->game;
-
     static uint8_t last_seen = 0;
     if (in->taps != last_seen) {
         last_seen = in->taps;
@@ -276,17 +270,13 @@ void housekeeping_task_user(void) {
     if (!is_keyboard_master()) {
         return;
     }
-    game_active = layer_state_is(_GAME);
-
     static uint8_t last_taps = 0;
     static uint8_t last_anim = 0xFF;
-    static uint8_t last_game = 0xFF;
-    if (tap_count != last_taps || anim_mode != last_anim || game_active != last_game) {
-        right_screen_sync_t out = {.taps = tap_count, .anim = anim_mode, .game = game_active};
+    if (tap_count != last_taps || anim_mode != last_anim) {
+        right_screen_sync_t out = {.taps = tap_count, .anim = anim_mode};
         if (transaction_rpc_send(RPC_ID_USER_TAP, sizeof(out), &out)) {
             last_taps = tap_count;
             last_anim = anim_mode;
-            last_game = game_active;
         }
     }
 }
@@ -573,17 +563,20 @@ static const char *layer_name(uint8_t layer) {
     }
 }
 
-static void render_mod_pill(uint8_t idx, const char *label, bool active) {
-    uint8_t top = ui_pill_top[idx];
-    uint8_t bot = top + UI_PILL_H - 1;
-    if (active) {
+// Ink flips on a filled box, so the label reads as knocked out of it.
+static void draw_labeled_box(uint8_t top, uint8_t bot, uint8_t text_y, const char *label, bool filled) {
+    if (filled) {
         draw_fill(0, top, SCREEN_W - 1, bot, true);
         round_corners(0, top, SCREEN_W - 1, bot);
     } else {
         draw_round_rect(0, top, SCREEN_W - 1, bot);
     }
-    // Ink flips on a filled pill, so the label reads as knocked out of it.
-    draw_text_centered(top + UI_TEXT_INSET, label, !active);
+    draw_text_centered(text_y, label, !filled);
+}
+
+static void render_mod_pill(uint8_t idx, const char *label, bool active) {
+    uint8_t top = ui_pill_top[idx];
+    draw_labeled_box(top, top + UI_PILL_H - 1, top + UI_TEXT_INSET, label, active);
 }
 
 static void render_layer_status(void) {
@@ -598,19 +591,22 @@ static void render_layer_status(void) {
     // Redraw only on change; a frame is hundreds of writes plus a clear.
     static uint8_t last_layer = 0xFF;
     static uint8_t last_mods  = 0xFF;
-    if (active_layer == last_layer && mod_bits == last_mods) {
+    static bool    last_game  = false;
+    bool           game       = layer_state_is(_GAME);
+    if (active_layer == last_layer && mod_bits == last_mods && game == last_game) {
         return;
     }
     last_layer = active_layer;
     last_mods  = mod_bits;
+    last_game  = game;
 
     // Required, not tidy: a pill going filled to outlined would keep its fill.
     oled_clear();
 
     draw_text_centered(UI_CAPTION_Y, "LAYER", true);
 
-    draw_round_rect(0, UI_CARD_TOP, SCREEN_W - 1, UI_CARD_BOT);
-    draw_text_centered(UI_NAME_Y, layer_name(active_layer), true);
+    // Stays filled while Game is toggled on, even with Lower or Raise held over it.
+    draw_labeled_box(UI_CARD_TOP, UI_CARD_BOT, UI_NAME_Y, layer_name(active_layer), game);
 
     draw_dotted(UI_RULE_Y);
 
@@ -1077,12 +1073,10 @@ static bool screen_power_task(void) {
 
 bool oled_task_user(void) {
     bool asleep = screen_power_task();
-    oled_invert(game_active);  // no-op unless the state actually changed
 
     if (asleep) {
         return false;  // let the buffer drain; the movers resume on wake
     }
-
 
     if (!half_draws_anim()) {
         render_layer_status();
