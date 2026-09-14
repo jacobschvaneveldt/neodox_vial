@@ -42,7 +42,8 @@ enum layers {
     _LOWER,
     _RAISE,
     _ADJUST,
-    _FKEY
+    _VALHEIM = 8,
+    _FKEY    = 11
 };
 
 enum keycodes {
@@ -61,6 +62,20 @@ enum keycodes {
 #define LOWER MO(_LOWER)
 #define RAISE MO(_RAISE)
 #define FKEY  MO(_FKEY)
+
+// Valheim is a game layer too: no combos, filled layer box.
+static bool in_game_layer(void) {
+    return layer_state_is(_GAME) || layer_state_is(_VALHEIM);
+}
+
+// A gap in keymaps[] loads into Vial as solid KC_NO, so unused layers are spelled out.
+#define EMPTY_LAYER LAYOUT( \
+        _______, _______, _______, _______, _______, _______,                                          _______, _______, _______, _______, _______, _______, \
+        _______, _______, _______, _______, _______, _______, _______,                        _______, _______, _______, _______, _______, _______, _______, \
+        _______, _______, _______, _______, _______, _______, _______,                        _______, _______, _______, _______, _______, _______, _______, \
+        _______, _______, _______, _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______, _______, _______, _______, \
+                 _______, _______, _______, _______, _______, _______, _______,      _______, _______, _______, _______, _______, _______, _______ \
+    )
 
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
@@ -120,6 +135,19 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
                  _______, _______, _______, _______, _______, _______,   _______,      _______, _______, _______,    _______, _______, _______, _______
     ),
 
+    [7] = EMPTY_LAYER,
+
+    [_VALHEIM] = LAYOUT(
+        KC_ESC, KC_1,    KC_2, KC_3, KC_4, KC_5,                                               KC_6,  KC_7,    KC_8,    KC_9,    KC_0,    _______,
+        KC_6,   KC_TAB,  KC_Q, KC_W, KC_E, KC_R,    TG(_GAME),                        KC_MPLY, KC_T,  KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,
+        KC_7,   KC_LCTL, KC_A, KC_S, KC_D, KC_F,    KC_F13,                           KC_MUTE, KC_G,  KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN,
+        KC_8,   KC_LSFT, KC_Z, KC_X, KC_C, KC_V,    KC_ENT,    KC_TAB,       KC_LGUI, KC_LALT, KC_B,  KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH,
+                KC_LALT, KC_9, KC_0, FKEY, KC_LBRC, KC_SPC,    KC_RBRC,      KC_LSFT, KC_SPC,  RAISE, KC_LEFT, KC_DOWN, KC_UP,   KC_RGHT
+    ),
+
+    [9]  = EMPTY_LAYER,
+    [10] = EMPTY_LAYER,
+
     [_FKEY] = LAYOUT(
         _______, _______, _______, _______, _______, _______,                                          _______, _______, _______, _______, _______, _______,
         _______, KC_F1,   KC_F2,   KC_F3,   KC_F4,   _______, _______,                        _______, _______, _______, _______, _______, _______, _______,
@@ -137,6 +165,10 @@ const uint16_t PROGMEM encoder_map[][2][2] = {
     [_LOWER]   = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
     [_RAISE]   = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
     [_ADJUST]  = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
+    [7]        = { ENCODER_CCW_CW(_______, _______), ENCODER_CCW_CW(_______, _______) },
+    [_VALHEIM] = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
+    [9]        = { ENCODER_CCW_CW(_______, _______), ENCODER_CCW_CW(_______, _______) },
+    [10]       = { ENCODER_CCW_CW(_______, _______), ENCODER_CCW_CW(_______, _______) },
     [_FKEY]    = { ENCODER_CCW_CW(KC_WH_R, KC_WH_L), ENCODER_CCW_CW(KC_VOLU, KC_VOLD) },
 };
 #endif
@@ -168,7 +200,7 @@ static const vial_combo_entry_t default_combos[] = {
 // Combos match keycodes, not layers, so each block is scoped to its layout.
 bool combo_should_trigger(uint16_t combo_index, combo_t *combo, uint16_t keycode, keyrecord_t *record) {
     // A stray letter chord mid-game sending Escape is the worst case.
-    if (layer_state_is(_GAME)) {
+    if (in_game_layer()) {
         return false;
     }
 
@@ -577,6 +609,8 @@ static const char *layer_name(uint8_t layer) {
             return "RAIS";
         case _ADJUST:
             return "ADJT";
+        case _VALHEIM:
+            return "VALH";
         case _FKEY:
             return "FKEY";
         default:
@@ -613,7 +647,7 @@ static void render_layer_status(void) {
     static uint8_t last_layer = 0xFF;
     static uint8_t last_mods  = 0xFF;
     static bool    last_game  = false;
-    bool           game       = layer_state_is(_GAME);
+    bool           game       = in_game_layer();
     if (active_layer == last_layer && mod_bits == last_mods && game == last_game) {
         return;
     }
