@@ -14,7 +14,7 @@
 #endif
 
 enum right_screen_anim { ANIM_DUCK, ANIM_BONGO };
-#define ANIM_DEFAULT ANIM_DUCK
+#define ANIM_DEFAULT ANIM_BONGO
 
 static uint8_t anim_mode = ANIM_DEFAULT;
 
