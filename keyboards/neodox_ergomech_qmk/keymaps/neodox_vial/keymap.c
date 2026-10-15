@@ -3,6 +3,9 @@
 #include "transactions.h"  // split RPC: not pulled in by QMK_KEYBOARD_H
 #include "oneshot.h"
 #include "bongo_cat.h"
+#ifdef QMK_SETTINGS
+#    include "qmk_settings.h"
+#endif
 
 #if __has_include("secrets.h")
 #    include "secrets.h"  // gitignored so the addresses stay out of the public repo
@@ -80,11 +83,11 @@ static bool in_game_layer(void) {
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [_QWERTY] = LAYOUT(
-        KC_ESC,  KC_1,    KC_2,   KC_3,   KC_4,   KC_5,                                                         KC_6,  KC_7,    KC_8,    KC_9,   KC_0,    KC_BSPC,
-        KC_TAB,  KC_Q,    KC_W,   KC_E,   KC_R,   KC_T,  TG(_VALHEIM),                              KC_MPLY,    KC_Y,  KC_U,    KC_I,    KC_O,   KC_P,    KC_DEL,
-        KC_LCTL, KC_A,    KC_S,   KC_D,   KC_F,   KC_G,  KC_F13,                                    KC_MUTE,    KC_H,  KC_J,    KC_K,    KC_L,   KC_SCLN, KC_QUOT,
-        KC_LSFT, KC_Z,    KC_X,   KC_C,   KC_V,   KC_B,  KC_ENT,       S(KC_LALT),      S(KC_LALT), HYPR(KC_A), KC_N,  KC_M,    KC_COMM, KC_DOT, KC_SLSH, SC_SENT,
-                 KC_LALT, KC_TAB, KC_ENT, KC_SPC, LOWER, KC_LSFT,      KC_BSPC,         KC_LCTL,    KC_SPC,     RAISE, KC_LEFT, KC_DOWN, KC_UP,  KC_RGHT
+        KC_ESC,  KC_1,         KC_2,         KC_3,         KC_4,         KC_5,                                                         KC_6,  KC_7,         KC_8,         KC_9,         KC_0,            KC_BSPC,
+        KC_TAB,  KC_Q,         KC_W,         KC_E,         KC_R,         KC_T,  TG(_VALHEIM),                              KC_MPLY,    KC_Y,  KC_U,         KC_I,         KC_O,         KC_P,            KC_DEL,
+        KC_LCTL, LGUI_T(KC_A), LALT_T(KC_S), LCTL_T(KC_D), LSFT_T(KC_F), KC_G,  KC_F13,                                    KC_MUTE,    KC_H,  LSFT_T(KC_J), LCTL_T(KC_K), LALT_T(KC_L), LGUI_T(KC_SCLN), KC_QUOT,
+        KC_LSFT, KC_Z,         KC_X,         KC_C,         KC_V,         KC_B,  KC_ENT,       S(KC_LALT),      S(KC_LALT), HYPR(KC_A), KC_N,  KC_M,         KC_COMM,      KC_DOT,       KC_SLSH,         SC_SENT,
+                 KC_LALT,      KC_TAB,       KC_ENT,       KC_SPC,       LOWER, KC_LSFT,      KC_BSPC,         KC_LCTL,    KC_SPC,     RAISE, KC_LEFT,      KC_DOWN,      KC_UP,        KC_RGHT
     ),
 
     [_NIGHT] = LAYOUT(
@@ -239,6 +242,91 @@ static void seed_combos_if_empty(void) {
     }
 }
 
+// Home-row mods (QWERTY only). Thumb keys are exempt from Chordal Hold's
+// opposite-hands rule, so a mod still works with a same-side thumb key.
+char chordal_hold_handedness(keypos_t key) {
+    bool inner_thumb = key.col == 6 && key.row != 0 && key.row != 1 && key.row != 5 && key.row != 6;
+    bool outer_thumb = (key.row == 4 || key.row == 9) && (key.col == 4 || key.col == 5);
+    if (inner_thumb || outer_thumb) {
+        return '*';
+    }
+    return key.row < MATRIX_ROWS / 2 ? 'L' : 'R';
+}
+
+// A stand-in for QMK's Flow Tap, which this fork predates: a mod-tap pressed
+// right after a letter is sent as that letter, so fast rolls never turn into
+// modifiers. Shift's window is shorter so a capital mid-sentence still works.
+static bool is_flow_key(uint16_t keycode) {
+    switch (keycode) {
+        case KC_A ... KC_Z:
+        case KC_SPC:
+        case KC_DOT:
+        case KC_COMM:
+        case KC_SCLN:
+        case KC_SLSH:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static uint16_t flow_tap_term(uint16_t keycode) {
+    return (QK_MOD_TAP_GET_MODS(keycode) & MOD_LSFT) ? FLOW_TAP_SHIFT_MS : FLOW_TAP_MS;
+}
+
+_Static_assert(MATRIX_COLS <= 8, "flowing[] holds one bit per column");
+
+bool pre_process_record_user(uint16_t keycode, keyrecord_t *record) {
+    static uint16_t prev_tap  = KC_NO;
+    static uint16_t prev_time = 0;
+    static uint8_t  held_mts  = 0;            // mod-taps down that may still become holds
+    static uint8_t  flowing[MATRIX_ROWS];     // mod-taps being sent as their letter
+
+    keypos_t key = record->event.key;
+    if (key.row >= MATRIX_ROWS || key.col >= MATRIX_COLS) {
+        return true;  // combos and encoders use virtual positions
+    }
+    bool     mt  = IS_QK_MOD_TAP(keycode);
+    uint16_t tap = mt ? QK_MOD_TAP_GET_TAP_KEYCODE(keycode) : keycode;
+
+    if (!record->event.pressed) {
+        if (flowing[key.row] & (1 << key.col)) {
+            flowing[key.row] &= ~(1 << key.col);
+            record->keycode = tap;  // release what was pressed
+        } else if (mt && held_mts) {
+            held_mts--;
+        }
+        return true;
+    }
+
+    if (mt) {
+        // Off while another mod-tap is down (chords) or a hotkey mod is held.
+        bool hotkey = get_mods() & (MOD_MASK_CG | MOD_BIT(KC_LALT));
+        if (!held_mts && !hotkey && is_flow_key(prev_tap) && is_flow_key(tap) &&
+            TIMER_DIFF_16(record->event.time, prev_time) < flow_tap_term(keycode)) {
+            flowing[key.row] |= 1 << key.col;
+            record->keycode = tap;
+        } else {
+            held_mts++;
+        }
+    }
+    prev_tap  = tap;
+    prev_time = record->event.time;
+    return true;
+}
+
+#ifdef QMK_SETTINGS
+// Vial's runtime tap-hold flags override config.h and come back all off after
+// every new build, which is the worst case for home-row mods. Refill them
+// while blank; once set to anything, Vial owns them.
+static void seed_tap_hold_settings(void) {
+    if (QS.tapping == 0) {
+        uint8_t flags = 1 | 2 | 4;  // permissive hold, no hold-on-other-key, no auto-repeat
+        qmk_settings_set(8, &flags, sizeof(flags));
+    }
+}
+#endif
+
 layer_state_t layer_state_set_user(layer_state_t state) {
     return update_tri_layer_state(state, _LOWER, _RAISE, _ADJUST);
 }
@@ -315,6 +403,9 @@ static void tap_sync_slave_handler(uint8_t in_len, const void *in_data, uint8_t 
 void keyboard_post_init_user(void) {
     transaction_register_rpc(RPC_ID_USER_TAP, tap_sync_slave_handler);
     seed_combos_if_empty();
+#ifdef QMK_SETTINGS
+    seed_tap_hold_settings();
+#endif
 }
 
 void housekeeping_task_user(void) {

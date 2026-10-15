@@ -28,6 +28,17 @@
 
 #define COMBO_TERM 35
 
+// Home-row mods. 250 is QMK's suggested start with Chordal Hold. A key held
+// this long is always a mod; quicker presses are judged by the roll rules.
+// Tunable live in Vial's Tapping Term setting, which resets on each flash.
+#define TAPPING_TERM 250
+#define CHORDAL_HOLD
+
+// After a letter, a home-row mod pressed within this many ms types its letter.
+// Raise if rolls still misfire as mods; lower if mods feel hard to trigger.
+#define FLOW_TAP_MS       150
+#define FLOW_TAP_SHIFT_MS 100
+
 // Enables the combo_should_trigger() hook, used to scope each seeded combo
 // set to the layout it was drawn for.
 #define COMBO_SHOULD_TRIGGER
